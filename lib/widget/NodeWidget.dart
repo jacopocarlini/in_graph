@@ -180,7 +180,7 @@ class _NodeWidgetState extends State<NodeWidget> {
             onTapOutside: (pointerDownEvent) {
               // Se questo nodo è selezionato e l'utente clicca fuori con il tool pointer
               if (isSelected(provider)) {
-                provider.setSelection([]);
+                provider.clearSelection();
                 _textFocusNode.unfocus();
               }
             },
@@ -435,61 +435,74 @@ class _NodeWidgetState extends State<NodeWidget> {
               child: buildNode(provider, isExpandedContainer, targetWidth, buildTextField),
             );
     var gestureDetector = GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: () {
-              if (activeTool == ToolType.pointer || activeTool == ToolType.pan) {
-                provider.setSelection([widget.node.id]);
-                setState(() => _isDragging = true);
-              }
-            },
-            onTapDown: (event) {
-              if (activeTool == ToolType.pointer|| activeTool == ToolType.pan) {
-                provider.setSelection([widget.node.id]);
-                setState(() => _isDragging = true);
-              }
-            },
-            onTapUp: (event) {
-              if (activeTool == ToolType.pointer|| activeTool == ToolType.pan) {
-                setState(() => _isDragging = false);
-              }
-            },
-            onPanStart: provider.activeTool != ToolType.pan
-                ? (details) {
-                    if (_textFocusNode.hasFocus) return;
-                    // --- NUOVA LOGICA: Se il tool è Edge, iniziamo a tracciare la linea
-                    if (activeTool == ToolType.edge) {
-                      provider.startEdge(widget.node.id);
-                      return; // Fermiamo l'esecuzione, non vogliamo trascinare il nodo
-                    }
-                    setState(() => _isDragging = true);
-                    provider.setSelection([widget.node.id]);
-                  }
-                : null,
-            onPanUpdate: provider.activeTool != ToolType.pan
-                ? (details) {
-                    if (_isDragging) {
-                      provider.moveNode(widget.node.id, details.delta);
-                    }
-                  }
-                : null,
-            onPanEnd: provider.activeTool != ToolType.pan
-                ? (details) {
-                    if (_isDragging) {
-                      setState(() => _isDragging = false);
-                      provider.handleNodeDrop(widget.node.id);
-                    }
-                  }
-                : null,
-            onPanCancel: provider.activeTool != ToolType.pan
-                ? () {
-                    if (_isDragging) {
-                      setState(() => _isDragging = false);
-                    }
-                  }
-                : null,
-            child: mouseRegion,
-          );
+      behavior: HitTestBehavior.opaque,
+      onTapDown: (details) {
+        if (activeTool == ToolType.pointer || activeTool == ToolType.pan) {
+          // 1. Calcoliamo la posizione del click rispetto al Canvas totale (10000x10000)
+          Offset canvasPosition = widget.node.position + details.localPosition;
 
+          // 2. Chiediamo al provider se in quel punto c'è una freccia
+          bool hitEdge = provider.trySelectEdgeAt(canvasPosition);
+
+          // 3. Se NON abbiamo colpito una freccia, selezioniamo il container/nodo
+          if (!hitEdge) {
+            provider.setSelection(widget.node.id);
+            setState(() => _isDragging = true);
+          }
+        }
+
+      },
+      onTap: () {
+        // Lasciato vuoto intenzionalmente: la selezione la facciamo già nel onTapDown!
+      },
+      onTapUp: (event) {
+        if (activeTool == ToolType.pointer || activeTool == ToolType.pan) {
+          setState(() => _isDragging = false);
+        }
+      },
+      onPanStart: provider.activeTool != ToolType.pan
+          ? (details) {
+        if (_textFocusNode.hasFocus) return;
+
+        if (activeTool == ToolType.edge) {
+          provider.startEdge(widget.node.id);
+          return;
+        }
+
+        // Se abbiamo appena selezionato una freccia, blocchiamo il trascinamento del container
+        if (provider.selectedEdgeIds.isNotEmpty) {
+          setState(() => _isDragging = false);
+          return;
+        }
+
+        setState(() => _isDragging = true);
+        provider.setSelection(widget.node.id);
+      }
+          : null,
+      onPanUpdate: provider.activeTool != ToolType.pan
+          ? (details) {
+        if (_isDragging) {
+          provider.moveNode(widget.node.id, details.delta);
+        }
+      }
+          : null,
+      onPanEnd: provider.activeTool != ToolType.pan
+          ? (details) {
+        if (_isDragging) {
+          setState(() => _isDragging = false);
+          provider.handleNodeDrop(widget.node.id);
+        }
+      }
+          : null,
+      onPanCancel: provider.activeTool != ToolType.pan
+          ? () {
+        if (_isDragging) {
+          setState(() => _isDragging = false);
+        }
+      }
+          : null,
+      child: mouseRegion,
+    );
     if (provider.activeTool == ToolType.pan){
       return buildNode(provider, isExpandedContainer, targetWidth, buildTextField);
     }

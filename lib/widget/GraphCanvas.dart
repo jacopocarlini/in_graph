@@ -185,7 +185,7 @@ class _GraphCanvasState extends State<GraphCanvas>
             provider.autoAdoptNodes(node2Add);
           }
           provider.setTool(ToolType.pointer);
-          provider.setSelection([node2Add.id]);
+          provider.setSelection(node2Add.id);
         }
       },
       child: buildCanvas(provider, activeTool),
@@ -271,7 +271,7 @@ class _GraphCanvasState extends State<GraphCanvas>
           }
           if (event.character == '5') {
             provider.setTool(ToolType.edge);
-            provider.setSelection([]);
+            provider.clearSelection();
           }
         }
         return KeyEventResult.ignored;
@@ -400,7 +400,7 @@ class _GraphCanvasState extends State<GraphCanvas>
 
   List<NodeWidget> buildNodes(GraphProvider provider) {
     var nodesToRender = List<GraphNode>.from(provider.visibleNodes);
-
+/*
     int getDepth(GraphNode node) {
       int depth = 0;
       String? currentParentId = node.parentId;
@@ -432,7 +432,7 @@ class _GraphCanvasState extends State<GraphCanvas>
       final indexB = provider.nodes.indexWhere((n) => n.id == b.id);
       return indexA.compareTo(indexB);
     });
-
+*/
     return nodesToRender.map((node) {
       return NodeWidget(key: ValueKey(node.id), node: node);
     }).toList();

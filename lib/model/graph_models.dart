@@ -1,13 +1,7 @@
 import 'package:flutter/material.dart';
 
 /// Enumeratore per gli strumenti della Toolbar
-enum ToolType {
-  pointer,
-  pan,
-  node,
-  container,
-  edge
-}
+enum ToolType { pointer, pan, node, container, edge }
 
 /// Modello per i Nodi (sia foglie che container)
 class GraphNode {
@@ -18,7 +12,6 @@ class GraphNode {
   Size? oldSize;
   final String? parentId;
   final bool isCollapsed;
-  final Map<String, dynamic>? metadata;
   final bool isContainer;
 
   // --- AGGIUNTA LOGICA SIZE GESTITA DAL MODELLO ---
@@ -37,7 +30,6 @@ class GraphNode {
     this.parentId,
     this.isCollapsed = false,
     this.isContainer = false,
-    this.metadata,
   });
 
   /// Metodo helper per creare una copia immutabile del nodo modificando solo alcuni campi
@@ -50,7 +42,7 @@ class GraphNode {
     bool? isCollapsed,
     bool? isContainer,
     Map<String, dynamic>? metadata,
-    bool clearParent = false, // <-- FONDAMENTALE PER TIRARE FUORI I NODI
+    bool clearParent = false,
   }) {
     return GraphNode(
       id: id,
@@ -58,10 +50,9 @@ class GraphNode {
       position: position ?? this.position,
       size: size ?? this.size,
       oldSize: oldSize ?? this.oldSize,
-      parentId: clearParent ? null : (parentId ?? this.parentId), // <-- LA LOGICA QUI
+      parentId: clearParent ? null : (parentId ?? this.parentId),
       isCollapsed: isCollapsed ?? this.isCollapsed,
       isContainer: isContainer ?? this.isContainer,
-      metadata: metadata ?? this.metadata,
     );
   }
 }
@@ -92,4 +83,11 @@ class AggregatedEdge extends GraphEdge {
     required this.count,
     super.label,
   });
+}
+
+class TempEdge {
+  final String sourceId;
+  Offset currentPosition;
+
+  TempEdge({required this.sourceId, required this.currentPosition});
 }
