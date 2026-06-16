@@ -167,6 +167,7 @@ class _NodeWidgetState extends State<NodeWidget> {
       );
     }
 
+
     return Positioned(
       left: widget.node.position.dx - (showBottomLabel ? textLeftOffset : 0),
       top: widget.node.position.dy,
@@ -320,6 +321,86 @@ class _NodeWidgetState extends State<NodeWidget> {
                 });
               },
             ),
+            // --- BOTTOM LEFT ---
+            buildResizeHandle(
+              alignment: Alignment.bottomLeft,
+              cursor: SystemMouseCursors.resizeUpRightDownLeft,
+              onResize: (details) {
+                setState(() {
+                  final deltaX = details.delta.dx / provider.zoomScale;
+                  final deltaY = details.delta.dy / provider.zoomScale;
+
+                  // Asse X (Sinistra): Sottraiamo il delta e modifichiamo la posizione X
+                  final oldWidth = widget.node.size.width;
+                  final newWidth = (oldWidth - deltaX).clamp(150.0, 2000.0);
+                  final actualDeltaX = oldWidth - newWidth;
+
+                  // Asse Y (Basso): Sommiamo normalmente
+                  final newHeight = (widget.node.size.height + deltaY).clamp(100.0, 2000.0);
+
+                  widget.node.size = Size(newWidth, newHeight);
+                  widget.node.position = Offset(
+                    widget.node.position.dx + actualDeltaX,
+                    widget.node.position.dy,
+                  );
+                });
+              },
+            ),
+
+            // --- TOP LEFT ---
+            buildResizeHandle(
+              alignment: Alignment.topLeft,
+              cursor: SystemMouseCursors.resizeUpLeftDownRight,
+              onResize: (details) {
+                setState(() {
+                  final deltaX = details.delta.dx / provider.zoomScale;
+                  final deltaY = details.delta.dy / provider.zoomScale;
+
+                  // Asse X (Sinistra)
+                  final oldWidth = widget.node.size.width;
+                  final newWidth = (oldWidth - deltaX).clamp(150.0, 2000.0);
+                  final actualDeltaX = oldWidth - newWidth;
+
+                  // Asse Y (Alto): Sottraiamo il delta e modifichiamo la posizione Y
+                  final oldHeight = widget.node.size.height;
+                  final newHeight = (oldHeight - deltaY).clamp(100.0, 2000.0);
+                  final actualDeltaY = oldHeight - newHeight;
+
+                  widget.node.size = Size(newWidth, newHeight);
+                  widget.node.position = Offset(
+                    widget.node.position.dx + actualDeltaX,
+                    widget.node.position.dy + actualDeltaY, // Spostiamo sia X che Y
+                  );
+                });
+              },
+            ),
+
+            // --- TOP RIGHT ---
+            buildResizeHandle(
+              alignment: Alignment.topRight,
+              cursor: SystemMouseCursors.resizeUpRightDownLeft,
+              onResize: (details) {
+                setState(() {
+                  final deltaX = details.delta.dx / provider.zoomScale;
+                  final deltaY = details.delta.dy / provider.zoomScale;
+
+                  // Asse X (Destra): Sommiamo normalmente
+                  final newWidth = (widget.node.size.width + deltaX).clamp(150.0, 2000.0);
+
+                  // Asse Y (Alto): Sottraiamo il delta e modifichiamo la posizione Y
+                  final oldHeight = widget.node.size.height;
+                  final newHeight = (oldHeight - deltaY).clamp(100.0, 2000.0);
+                  final actualDeltaY = oldHeight - newHeight;
+
+                  widget.node.size = Size(newWidth, newHeight);
+                  widget.node.position = Offset(
+                    widget.node.position.dx,
+                    widget.node.position.dy + actualDeltaY, // Spostiamo solo Y
+                  );
+                });
+              },
+            ),
+
           ],
         ],
       ),

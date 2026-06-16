@@ -15,6 +15,7 @@ class GraphNode {
   final String name;
   Offset position;
   Size size;
+  Size? oldSize;
   final String? parentId;
   final bool isCollapsed;
   final Map<String, dynamic>? metadata;
@@ -32,6 +33,7 @@ class GraphNode {
     required this.name,
     required this.position,
     required this.size,
+    this.oldSize,
     this.parentId,
     this.isCollapsed = false,
     this.isContainer = false,
@@ -43,6 +45,7 @@ class GraphNode {
     String? name,
     Offset? position,
     Size? size,
+    Size? oldSize,
     String? parentId,
     bool? isCollapsed,
     bool? isContainer,
@@ -54,6 +57,7 @@ class GraphNode {
       name: name ?? this.name,
       position: position ?? this.position,
       size: size ?? this.size,
+      oldSize: oldSize ?? this.oldSize,
       parentId: clearParent ? null : (parentId ?? this.parentId), // <-- LA LOGICA QUI
       isCollapsed: isCollapsed ?? this.isCollapsed,
       isContainer: isContainer ?? this.isContainer,

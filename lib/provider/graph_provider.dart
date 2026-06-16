@@ -127,7 +127,8 @@ class GraphProvider extends ChangeNotifier {
   // --- METODI DEI TOOL E SELEZIONE ---
   void setSelection(List<String> ids) {
     _selection = ids;
-    _selectedEdgeIds.clear(); // Reset delle frecce se viene forzata la selezione di nodi
+    _selectedEdgeIds
+        .clear(); // Reset delle frecce se viene forzata la selezione di nodi
 
     // --- NUOVA LOGICA: Porta in primo piano (Bring to Front) ---
     if (ids.isNotEmpty) {
@@ -148,7 +149,9 @@ class GraphProvider extends ChangeNotifier {
       }
 
       // Estraiamo i nodi coinvolti e li rimettiamo in fondo alla lista
-      final nodesToFront = _nodes.where((n) => allIdsToFront.contains(n.id)).toList();
+      final nodesToFront = _nodes
+          .where((n) => allIdsToFront.contains(n.id))
+          .toList();
       _nodes.removeWhere((n) => allIdsToFront.contains(n.id));
       _nodes.addAll(nodesToFront);
     }
@@ -582,7 +585,13 @@ class GraphProvider extends ChangeNotifier {
   void toggleCollapse(String nodeId) {
     final index = _nodes.indexWhere((n) => n.id == nodeId);
     if (index != -1) {
+      var size = !_nodes[index].isCollapsed
+          ? GraphNode.defaultNodeSize
+          : _nodes[index].oldSize;
+
       _nodes[index] = _nodes[index].copyWith(
+        size: size,
+        oldSize: _nodes[index].size,
         isCollapsed: !_nodes[index].isCollapsed,
       );
       notifyListeners();

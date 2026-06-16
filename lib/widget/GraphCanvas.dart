@@ -176,6 +176,7 @@ class _GraphCanvasState extends State<GraphCanvas>
             name: isContainer ? 'New Container' : 'New Node',
             position: centeredPosition,
             size: nodeSize,
+            oldSize: isContainer ? nodeSize : null,
             isContainer: isContainer,
           );
 
