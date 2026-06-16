@@ -23,6 +23,8 @@ class _NodeWidgetState extends State<NodeWidget> {
 
   final double _resizeHandleThickness = 8.0;
 
+  bool _isHover = false;
+
   @override
   void initState() {
     super.initState();
@@ -90,7 +92,7 @@ class _NodeWidgetState extends State<NodeWidget> {
           provider.setIsTextEdit(true);
           provider.updateNameNode(widget.node.id, newValue);
         },
-        onTapOutside: (e){
+        onTapOutside: (e) {
           provider.setIsTextEdit(false);
         },
       );
@@ -225,60 +227,82 @@ class _NodeWidgetState extends State<NodeWidget> {
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTap: () {
-                if (activeTool == ToolType.pointer) {
+                if (activeTool == ToolType.pointer || activeTool == ToolType.pan) {
                   provider.setSelection([widget.node.id]);
                   setState(() => _isDragging = true);
                 }
               },
               onTapDown: (event) {
-                if (activeTool == ToolType.pointer) {
+                if (activeTool == ToolType.pointer|| activeTool == ToolType.pan) {
                   provider.setSelection([widget.node.id]);
                   setState(() => _isDragging = true);
                 }
               },
               onTapUp: (event) {
-                if (activeTool == ToolType.pointer) {
+                if (activeTool == ToolType.pointer|| activeTool == ToolType.pan) {
                   setState(() => _isDragging = false);
                 }
               },
-              onPanStart: (details) {
-                if (_textFocusNode.hasFocus) return;
-                // --- NUOVA LOGICA: Se il tool è Edge, iniziamo a tracciare la linea
-                if (activeTool == ToolType.edge) {
-                  provider.startEdge(widget.node.id);
-                  return; // Fermiamo l'esecuzione, non vogliamo trascinare il nodo
-                }
-                setState(() => _isDragging = true);
-                provider.setSelection([widget.node.id]);
-              },
-              onPanUpdate: (details) {
-                if (_isDragging) {
-                  provider.moveNode(
-                    widget.node.id,
-                    details.delta,
-                  );
-                }
-              },
-              onPanEnd: (details) {
-                if (_isDragging) {
-                  setState(() => _isDragging = false);
-                  provider.handleNodeDrop(widget.node.id);
-                }
-              },
-              onPanCancel: () {
-                if (_isDragging) {
-                  setState(() => _isDragging = false);
-                }
-              },
+              onPanStart: provider.activeTool != ToolType.pan
+                  ? (details) {
+                      if (_textFocusNode.hasFocus) return;
+                      // --- NUOVA LOGICA: Se il tool è Edge, iniziamo a tracciare la linea
+                      if (activeTool == ToolType.edge) {
+                        provider.startEdge(widget.node.id);
+                        return; // Fermiamo l'esecuzione, non vogliamo trascinare il nodo
+                      }
+                      setState(() => _isDragging = true);
+                      provider.setSelection([widget.node.id]);
+                    }
+                  : null,
+              onPanUpdate: provider.activeTool != ToolType.pan
+                  ? (details) {
+                      if (_isDragging) {
+                        provider.moveNode(widget.node.id, details.delta);
+                      }
+                    }
+                  : null,
+              onPanEnd: provider.activeTool != ToolType.pan
+                  ? (details) {
+                      if (_isDragging) {
+                        setState(() => _isDragging = false);
+                        provider.handleNodeDrop(widget.node.id);
+                      }
+                    }
+                  : null,
+              onPanCancel: provider.activeTool != ToolType.pan
+                  ? () {
+                      if (_isDragging) {
+                        setState(() => _isDragging = false);
+                      }
+                    }
+                  : null,
               child: MouseRegion(
-                cursor: _isDragging
-                    ? SystemMouseCursors.grabbing
-                    : SystemMouseCursors.grab,
+                cursor: getCursor(provider),
+                onHover: (event) {
+                  if (provider.activeTool == ToolType.edge) {
+                    setState(() {
+                      _isHover = true;
+                    });
+                  }
+                },
+                onExit: (event) {
+                  if (provider.activeTool == ToolType.edge) {
+                    setState(() {
+                      _isHover = false;
+                    });
+                  }
+                },
+                onEnter: (event) {
+                  if (provider.activeTool == ToolType.edge) {
+                    setState(() {
+                      _isHover = true;
+                    });
+                  }
+                },
                 child: Container(
                   decoration: BoxDecoration(
-                    color: widget.node.isContainer
-                        ? Colors.white.withOpacity(0.5)
-                        : Colors.white,
+                    color: Colors.white,
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
                       color: isSelected(provider)
@@ -286,6 +310,19 @@ class _NodeWidgetState extends State<NodeWidget> {
                           : Colors.grey.shade300,
                       width: isSelected(provider) ? 2.0 : 1.0,
                     ),
+                    boxShadow: _isHover && provider.activeTool == ToolType.edge
+                        ? [
+                            BoxShadow(
+                              color: Colors.blue.withValues(alpha: 0.5),
+                              spreadRadius: 5,
+                              blurRadius: 7,
+                              offset: Offset(
+                                0,
+                                3,
+                              ), // changes position of shadow
+                            ),
+                          ]
+                        : null,
                   ),
                   child: Material(
                     color: Colors.transparent,
@@ -298,7 +335,7 @@ class _NodeWidgetState extends State<NodeWidget> {
                                   ? Icons.folder
                                   : Icons.widgets_rounded,
                               size: targetWidth * 0.5,
-                              color: Colors.black54
+                              color: Colors.black54,
                             ),
                           ),
 
@@ -443,5 +480,21 @@ class _NodeWidgetState extends State<NodeWidget> {
         ],
       ),
     );
+  }
+
+  SystemMouseCursor getCursor(GraphProvider provider) {
+    if (provider.activeTool == ToolType.pan) {
+      return SystemMouseCursors.grab;
+    }
+    if (provider.activeTool == ToolType.edge) {
+      return SystemMouseCursors.precise;
+    }
+    if (provider.activeTool == ToolType.pointer) {
+      return _isDragging
+          ? SystemMouseCursors.grabbing
+          : SystemMouseCursors.grab;
+    }
+
+    return SystemMouseCursors.basic;
   }
 }

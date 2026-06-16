@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../model/graph_models.dart';
+import '../util/edge_routing_service.dart'; // Assicurati che il percorso sia corretto
 
 class TempEdge {
   final String sourceId;
@@ -13,16 +14,36 @@ class GraphProvider extends ChangeNotifier {
   final List<GraphEdge> _edges = [];
 
   ToolType _activeTool = ToolType.pointer;
-  List<String> _selection = [];
+  List<String> _selection = []; // Selezioni dei Nodi
+  List<String> _selectedEdgeIds = []; // === NUOVO: Selezioni delle Frecce ===
+
   String? _activeHoverId;
-  TempEdge? _tempEdge;
   Offset? _previewPosition;
   double? _zoomScale;
   bool _isTextEdit = false;
+  Offset _panOffset = Offset.zero;
+
+  // Stato per la creazione guidata dell'edge (Draft Edge)
+  String? _draftEdgeSourceId;
+  Offset? _draftEdgeTarget;
 
   bool get isTextEdit => _isTextEdit;
 
   List<GraphNode> get nodes => _nodes;
+
+  List<GraphEdge> get edges => _edges;
+
+  ToolType get activeTool => _activeTool;
+
+  List<String> get selection => _selection;
+
+  List<String> get selectedEdgeIds =>
+      _selectedEdgeIds; // === NUOVO: Getter Frecce ===
+  String? get activeHoverId => _activeHoverId;
+
+  Offset? get previewPosition => _previewPosition;
+
+  Offset get panOffset => _panOffset;
 
   int get zoomPercentage {
     double zoomScale = (_zoomScale ?? 1);
@@ -32,52 +53,54 @@ class GraphProvider extends ChangeNotifier {
 
   double get zoomScale => _zoomScale ?? 1.0;
 
-  List<GraphEdge> get edges => _edges;
+  TempEdge? get tempEdge {
+    if (_draftEdgeSourceId != null && _draftEdgeTarget != null) {
+      return TempEdge(
+        sourceId: _draftEdgeSourceId!,
+        currentPosition: _draftEdgeTarget!,
+      );
+    }
+    return null;
+  }
 
-  ToolType get activeTool => _activeTool;
+  bool get isCreatingEdge => _draftEdgeSourceId != null;
 
-  List<String> get selection => _selection;
+  String? get draftEdgeSourceId => _draftEdgeSourceId;
 
-  String? get activeHoverId => _activeHoverId;
+  Offset? get draftEdgeTarget => _draftEdgeTarget;
 
-  TempEdge? get tempEdge => _tempEdge;
-
-  Offset? get previewPosition => _previewPosition;
-
-  void setIsTextEdit(bool isTextEdit){
+  void setIsTextEdit(bool isTextEdit) {
     _isTextEdit = isTextEdit;
   }
 
   // --- LOGICA DI AGGREGAZIONE FRECCE ---
-  List<AggregatedEdge> getAggregatedEdges() {
-    // Trova il nodo visibile più alto nella gerarchia (se il padre è collassato)
-    String getVisibleEndpoint(String nodeId) {
-      var current = _nodes.cast<GraphNode?>().firstWhere(
-        (n) => n?.id == nodeId,
+  String _getVisibleEndpoint(String nodeId) {
+    var current = _nodes.cast<GraphNode?>().firstWhere(
+      (n) => n?.id == nodeId,
+      orElse: () => null,
+    );
+    String visibleId = nodeId;
+
+    while (current != null && current.parentId != null) {
+      final parent = _nodes.cast<GraphNode?>().firstWhere(
+        (n) => n?.id == current!.parentId,
         orElse: () => null,
       );
-      String visibleId = nodeId;
-
-      while (current != null && current.parentId != null) {
-        final parent = _nodes.cast<GraphNode?>().firstWhere(
-          (n) => n?.id == current!.parentId,
-          orElse: () => null,
-        );
-        if (parent != null && parent.isCollapsed) {
-          visibleId = parent.id;
-        }
-        current = parent;
+      if (parent != null && parent.isCollapsed) {
+        visibleId = parent.id;
       }
-      return visibleId;
+      current = parent;
     }
+    return visibleId;
+  }
 
+  List<AggregatedEdge> getAggregatedEdges() {
     Map<String, AggregatedEdge> aggregatedMap = {};
 
     for (var edge in _edges) {
-      final visibleSource = getVisibleEndpoint(edge.sourceId);
-      final visibleTarget = getVisibleEndpoint(edge.targetId);
+      final visibleSource = _getVisibleEndpoint(edge.sourceId);
+      final visibleTarget = _getVisibleEndpoint(edge.targetId);
 
-      // Se entrambi i capi della freccia finiscono in un container collassato, nascondiamo la freccia
       if (visibleSource == visibleTarget) continue;
 
       final key = '$visibleSource-$visibleTarget';
@@ -104,6 +127,14 @@ class GraphProvider extends ChangeNotifier {
   // --- METODI DEI TOOL E SELEZIONE ---
   void setSelection(List<String> ids) {
     _selection = ids;
+    _selectedEdgeIds
+        .clear(); // Reset delle frecce se viene forzata la selezione di nodi
+    notifyListeners();
+  }
+
+  void clearSelection() {
+    _selection.clear();
+    _selectedEdgeIds.clear();
     notifyListeners();
   }
 
@@ -126,56 +157,348 @@ class GraphProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // --- METODI DELLE FRECCE (EDGES) ---
-  void startTempEdge(String sourceId, Offset startPos) {
-    _tempEdge = TempEdge(sourceId: sourceId, currentPosition: startPos);
+  // --- METODI GESTIONE EDGE ---
+  void startEdge(String sourceNodeId) {
+    _draftEdgeSourceId = sourceNodeId;
+    _draftEdgeTarget = null;
     notifyListeners();
   }
 
-  void updateTempEdge(Offset newPos) {
-    if (_tempEdge != null) {
-      _tempEdge!.currentPosition = newPos;
+  void updateDraftEdge(Offset pointerPosition) {
+    if (!isCreatingEdge) return;
+    _draftEdgeTarget = pointerPosition;
+    notifyListeners();
+  }
+
+  void finishEdge(Offset position) {
+    if (_draftEdgeSourceId == null) return;
+
+    GraphNode? targetNode;
+    for (var node in nodes.reversed) {
+      if (node.id == _draftEdgeSourceId) continue;
+      final rect = Rect.fromLTWH(
+        node.position.dx,
+        node.position.dy,
+        node.size.width,
+        node.size.height,
+      );
+      if (rect.contains(position)) {
+        targetNode = node;
+        break;
+      }
+    }
+
+    if (targetNode != null) {
+      bool edgeAlreadyExists = edges.any((edge) {
+        bool isSameDirection =
+            edge.sourceId == _draftEdgeSourceId &&
+            edge.targetId == targetNode!.id;
+        bool isOppositeDirection =
+            edge.sourceId == targetNode!.id &&
+            edge.targetId == _draftEdgeSourceId;
+
+        return isSameDirection || isOppositeDirection;
+      });
+
+      if (!edgeAlreadyExists) {
+        final newEdge = GraphEdge(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          sourceId: _draftEdgeSourceId!,
+          targetId: targetNode.id,
+        );
+        edges.add(newEdge);
+      } else {
+        debugPrint("Connessione già esistente tra questi nodi!");
+      }
+    }
+
+    _draftEdgeSourceId = null;
+    _draftEdgeTarget = null;
+    notifyListeners();
+  }
+
+  // === NUOVO: SELEZIONE FRECCIA TRAMITE CLICK ===
+  // === METODO SELEZIONE AL CLICK (COMPLETO DI PORT SLOTTING E OSTACOLI A*) ===
+  void trySelectEdgeAt(Offset localPosition) {
+    _selectedEdgeIds.clear();
+
+    final aggregatedEdges = getAggregatedEdges();
+    final Map<String, List<String>> edgesBySource = {};
+    for (var edge in aggregatedEdges) {
+      edgesBySource.putIfAbsent(edge.sourceId, () => []).add(edge.id);
+    }
+
+    for (var edge in aggregatedEdges) {
+      final source = _nodes.cast<GraphNode?>().firstWhere(
+        (n) => n?.id == edge.sourceId,
+        orElse: () => null,
+      );
+      final target = _nodes.cast<GraphNode?>().firstWhere(
+        (n) => n?.id == edge.targetId,
+        orElse: () => null,
+      );
+      if (source == null || target == null) continue;
+
+      final sRect = Rect.fromLTWH(
+        source.position.dx,
+        source.position.dy,
+        source.size.width,
+        source.size.height,
+      );
+      final tRect = Rect.fromLTWH(
+        target.position.dx,
+        target.position.dy,
+        target.size.width,
+        target.size.height,
+      );
+
+      final sourceIndex = edgesBySource[edge.sourceId]!.indexOf(edge.id);
+      final sourceTotal = edgesBySource[edge.sourceId]!.length;
+
+      final targetIndex = edgesBySource[edge.targetId]?.indexOf(edge.id) ?? 0;
+      final targetTotal = edgesBySource[edge.targetId]?.length ?? 1;
+
+      // Calcolo sdoppiamento porte
+      final dx = tRect.center.dx - sRect.center.dx;
+      final dy = tRect.center.dy - sRect.center.dy;
+
+      Offset sOffset = Offset.zero;
+      Offset tOffset = Offset.zero;
+
+      if (dx.abs() > dy.abs()) {
+        if (sourceTotal > 1) {
+          final step = ((source.size.height * 0.6) / (sourceTotal - 1)).clamp(
+            8.0,
+            16.0,
+          );
+          sOffset = Offset(0, (sourceIndex - (sourceTotal - 1) / 2) * step);
+        }
+        if (targetTotal > 1) {
+          final step = ((target.size.height * 0.6) / (targetTotal - 1)).clamp(
+            8.0,
+            16.0,
+          );
+          tOffset = Offset(0, (targetIndex - (targetTotal - 1) / 2) * step);
+        }
+      } else {
+        if (sourceTotal > 1) {
+          final step = ((source.size.width * 0.6) / (sourceTotal - 1)).clamp(
+            8.0,
+            16.0,
+          );
+          sOffset = Offset((sourceIndex - (sourceTotal - 1) / 2) * step, 0);
+        }
+        if (targetTotal > 1) {
+          final step = ((target.size.width * 0.6) / (targetTotal - 1)).clamp(
+            8.0,
+            16.0,
+          );
+          tOffset = Offset((targetIndex - (targetTotal - 1) / 2) * step, 0);
+        }
+      }
+
+      // ECCO I RETTANGOLI VIRTUALI
+      final virtualSRect = sRect.shift(sOffset);
+      final virtualTRect = tRect.shift(tOffset);
+
+      final int globalIndex = aggregatedEdges.indexOf(edge);
+      final double laneOffset = (globalIndex % 6) * 12.0;
+
+      // Raccogliamo gli ostacoli
+      List<Rect> obstacles = [];
+      for (var node in _nodes) {
+        if (node.id == edge.sourceId || node.id == edge.targetId) continue;
+        obstacles.add(
+          Rect.fromLTWH(
+            node.position.dx,
+            node.position.dy,
+            node.size.width,
+            node.size.height,
+          ),
+        );
+      }
+
+      // Calcoliamo la geometria della freccia usando lo stesso percorso di EdgePainter
+      final points = EdgeRoutingService.calculateOrthogonalPoints(
+        virtualSRect,
+        virtualTRect,
+        obstacles: obstacles,
+        laneOffset: laneOffset, // <-- Assicurati di passare laneOffset qui
+      );
+
+      // Tolleranza di 12 pixel per cliccare la linea
+      if (EdgeRoutingService.isPointNearEdge(localPosition, points, 12.0)) {
+        _selectedEdgeIds.add(edge.id);
+        _selection.clear();
+        notifyListeners();
+        return;
+      }
+    }
+    notifyListeners();
+  }
+
+  // === METODO SELEZIONE RETTANGOLO (COMPLETO DI PORT SLOTTING E OSTACOLI A*) ===
+  void updateSelectionFromRect(Rect selectionRect) {
+    List<String> newSelection = [];
+    List<String> newSelectedEdgeIds = [];
+
+    // Seleziona nodi
+    for (var node in _nodes) {
+      final isCollapsedContainer = node.isContainer && node.isCollapsed;
+      final width = isCollapsedContainer
+          ? GraphNode.defaultNodeSize.width
+          : node.size.width;
+      final height = isCollapsedContainer
+          ? GraphNode.defaultNodeSize.height
+          : (node.isContainer ? node.size.height : node.size.width);
+
+      final nodeRect = Rect.fromLTWH(
+        node.position.dx,
+        node.position.dy,
+        width,
+        height,
+      );
+
+      if (selectionRect.left <= nodeRect.left &&
+          selectionRect.right >= nodeRect.right &&
+          selectionRect.top <= nodeRect.top &&
+          selectionRect.bottom >= nodeRect.bottom) {
+        newSelection.add(node.id);
+      }
+    }
+
+    // Seleziona frecce
+    final aggregatedEdges = getAggregatedEdges();
+    final Map<String, List<String>> edgesBySource = {};
+    for (var edge in aggregatedEdges) {
+      edgesBySource.putIfAbsent(edge.sourceId, () => []).add(edge.id);
+    }
+
+    for (var edge in aggregatedEdges) {
+      final source = _nodes.cast<GraphNode?>().firstWhere(
+        (n) => n?.id == edge.sourceId,
+        orElse: () => null,
+      );
+      final target = _nodes.cast<GraphNode?>().firstWhere(
+        (n) => n?.id == edge.targetId,
+        orElse: () => null,
+      );
+      if (source == null || target == null) continue;
+
+      final sRect = Rect.fromLTWH(
+        source.position.dx,
+        source.position.dy,
+        source.size.width,
+        source.size.height,
+      );
+      final tRect = Rect.fromLTWH(
+        target.position.dx,
+        target.position.dy,
+        target.size.width,
+        target.size.height,
+      );
+
+      final sourceIndex = edgesBySource[edge.sourceId]!.indexOf(edge.id);
+      final sourceTotal = edgesBySource[edge.sourceId]!.length;
+
+      final targetIndex = edgesBySource[edge.targetId]?.indexOf(edge.id) ?? 0;
+      final targetTotal = edgesBySource[edge.targetId]?.length ?? 1;
+
+      final dx = tRect.center.dx - sRect.center.dx;
+      final dy = tRect.center.dy - sRect.center.dy;
+
+      Offset sOffset = Offset.zero;
+      Offset tOffset = Offset.zero;
+
+      if (dx.abs() > dy.abs()) {
+        if (sourceTotal > 1) {
+          final step = ((source.size.height * 0.6) / (sourceTotal - 1)).clamp(
+            8.0,
+            16.0,
+          );
+          sOffset = Offset(0, (sourceIndex - (sourceTotal - 1) / 2) * step);
+        }
+        if (targetTotal > 1) {
+          final step = ((target.size.height * 0.6) / (targetTotal - 1)).clamp(
+            8.0,
+            16.0,
+          );
+          tOffset = Offset(0, (targetIndex - (targetTotal - 1) / 2) * step);
+        }
+      } else {
+        if (sourceTotal > 1) {
+          final step = ((source.size.width * 0.6) / (sourceTotal - 1)).clamp(
+            8.0,
+            16.0,
+          );
+          sOffset = Offset((sourceIndex - (sourceTotal - 1) / 2) * step, 0);
+        }
+        if (targetTotal > 1) {
+          final step = ((target.size.width * 0.6) / (targetTotal - 1)).clamp(
+            8.0,
+            16.0,
+          );
+          tOffset = Offset((targetIndex - (targetTotal - 1) / 2) * step, 0);
+        }
+      }
+
+      final virtualSRect = sRect.shift(sOffset);
+      final virtualTRect = tRect.shift(tOffset);
+
+      final int globalIndex = aggregatedEdges.indexOf(edge);
+      final double laneOffset = (globalIndex % 6) * 12.0;
+
+      List<Rect> obstacles = [];
+      for (var node in _nodes) {
+        if (node.id == edge.sourceId || node.id == edge.targetId) continue;
+        obstacles.add(
+          Rect.fromLTWH(
+            node.position.dx,
+            node.position.dy,
+            node.size.width,
+            node.size.height,
+          ),
+        );
+      }
+
+      final points = EdgeRoutingService.calculateOrthogonalPoints(
+        virtualSRect,
+        virtualTRect,
+        obstacles: obstacles,
+        laneOffset: laneOffset, // <-- Assicurati di passare laneOffset qui
+      );
+
+      bool isCompletelyInside = points.every((p) => selectionRect.contains(p));
+      if (isCompletelyInside) {
+        newSelectedEdgeIds.add(edge.id);
+      }
+    }
+
+    bool nodesChanged = _selection.toString() != newSelection.toString();
+    bool edgesChanged =
+        _selectedEdgeIds.toString() != newSelectedEdgeIds.toString();
+
+    if (nodesChanged || edgesChanged) {
+      _selection = newSelection;
+      _selectedEdgeIds = newSelectedEdgeIds;
       notifyListeners();
     }
   }
 
-  void clearTempEdge() {
-    _tempEdge = null;
-    notifyListeners();
-  }
-
-  void addEdge(String sourceId, String targetId) {
-    // Evita loop su se stesso
-    if (sourceId == targetId) return;
-    // Evita duplicati esatti
-    if (_edges.any((e) => e.sourceId == sourceId && e.targetId == targetId))
-      return;
-
-    _edges.add(
-      GraphEdge(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        sourceId: sourceId,
-        targetId: targetId,
-      ),
-    );
-    notifyListeners();
-  }
-
-  // 3. Aggiungi il metodo per aggiornarla (o pulirla)
   void updatePreviewPosition(Offset? pos) {
     _previewPosition = pos;
     notifyListeners();
   }
 
-  // 4. (Opzionale ma consigliato) Nel metodo setTool esistente, pulisci l'anteprima quando cambi strumento:
   void setTool(ToolType tool) {
     _activeTool = tool;
-    _tempEdge = null;
-    _previewPosition = null; // <-- Aggiungi questa riga
+    _draftEdgeSourceId = null;
+    _draftEdgeTarget = null;
+    _previewPosition = null;
     notifyListeners();
   }
 
-  /// Ritorna solo i nodi visibili (nasconde i figli dei container collassati)
+  // --- GERARCHIA E VISIBILITÀ ---
   List<GraphNode> get visibleNodes {
     return _nodes.where((node) {
       String? currentParentId = node.parentId;
@@ -184,30 +507,26 @@ class GraphProvider extends ChangeNotifier {
         if (parentIndex == -1) break;
 
         final parent = _nodes[parentIndex];
-        if (parent.isCollapsed)
-          return false; // Nascondi se un genitore è chiuso
+        if (parent.isCollapsed) return false;
         currentParentId = parent.parentId;
       }
       return true;
     }).toList();
   }
 
-  /// Eseguito nell'onPanEnd: valuta se il nodo è stato rilasciato dentro un container
   void handleNodeDrop(String nodeId) {
     final nodeIndex = _nodes.indexWhere((n) => n.id == nodeId);
     if (nodeIndex == -1) return;
 
     final node = _nodes[nodeIndex];
-    // Usiamo l'helper per trovare il vero centro del nodo trascinato
     final nodeCenter = _getEffectiveRect(node).center;
 
-    // Cerca i container validi la cui "Area Effettiva" contiene il nodo
     final validContainers = _nodes
         .where(
           (c) =>
               c.isContainer &&
               c.id != nodeId &&
-              _getEffectiveRect(c).contains(nodeCenter), // <-- FIX QUI
+              _getEffectiveRect(c).contains(nodeCenter),
         )
         .toList();
 
@@ -220,15 +539,14 @@ class GraphProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Ingloba i nodi quando si crea un nuovo container
   void autoAdoptNodes(GraphNode container) {
-    final containerRect = _getEffectiveRect(container); // <-- FIX QUI
+    final containerRect = _getEffectiveRect(container);
 
     for (var i = 0; i < _nodes.length; i++) {
       final child = _nodes[i];
       if (child.id == container.id || child.isContainer) continue;
 
-      final childCenter = _getEffectiveRect(child).center; // <-- FIX QUI
+      final childCenter = _getEffectiveRect(child).center;
 
       if (containerRect.contains(childCenter)) {
         _nodes[i] = child.copyWith(parentId: container.id);
@@ -237,7 +555,6 @@ class GraphProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Inverte lo stato Aperto/Chiuso del container
   void toggleCollapse(String nodeId) {
     final index = _nodes.indexWhere((n) => n.id == nodeId);
     if (index != -1) {
@@ -248,11 +565,9 @@ class GraphProvider extends ChangeNotifier {
     }
   }
 
-  /// Ridimensiona un nodo (usato per i container)
   void resizeNode(String id, Size newSize) {
     final index = _nodes.indexWhere((n) => n.id == id);
     if (index != -1) {
-      // Impostiamo delle dimensioni minime per evitare che scompaia (es. 150x100)
       final width = newSize.width < 150 ? 150.0 : newSize.width;
       final height = newSize.height < 100 ? 100.0 : newSize.height;
 
@@ -261,8 +576,6 @@ class GraphProvider extends ChangeNotifier {
     }
   }
 
-  /// Scansiona i nodi e aggiorna i figli in base ai nuovi confini del container.
-  /// Da chiamare alla fine di un resize o di un drop.
   void updateContainerChildren(String containerId) {
     final containerIndex = _nodes.indexWhere((n) => n.id == containerId);
     if (containerIndex == -1) return;
@@ -286,13 +599,11 @@ class GraphProvider extends ChangeNotifier {
         child.size.height,
       ).center;
 
-      // Se il centro del nodo è dentro il container, lo adottiamo
       if (containerRect.contains(childCenter)) {
         if (child.parentId != container.id) {
           _nodes[i] = child.copyWith(parentId: container.id);
         }
       } else {
-        // Se era un figlio ma ora è fuori dai bordi (perché il container è stato rimpicciolito), lo espelliamo
         if (child.parentId == container.id) {
           _nodes[i] = child.copyWith(clearParent: true);
         }
@@ -302,7 +613,6 @@ class GraphProvider extends ChangeNotifier {
   }
 
   Rect _getEffectiveRect(GraphNode node) {
-    // Se è un container chiuso, l'area di collisione si restringe al quadrato di default
     if (node.isContainer && node.isCollapsed) {
       return Rect.fromLTWH(
         node.position.dx,
@@ -311,7 +621,6 @@ class GraphProvider extends ChangeNotifier {
         GraphNode.defaultNodeSize.height,
       );
     }
-    // Altrimenti usa le sue dimensioni normali
     return Rect.fromLTWH(
       node.position.dx,
       node.position.dy,
@@ -320,145 +629,7 @@ class GraphProvider extends ChangeNotifier {
     );
   }
 
-  // --- DA INSERIRE IN GraphProvider ---
-
-  /// Elimina i nodi selezionati e tutti i loro figli in modo ricorsivo
-  void deleteSelectedNodes() {
-    if (selection.isEmpty) return;
-
-    // Sotto-funzione ricorsiva per raccogliere l'ID corrente e tutti i figli/nipoti
-    void collectAllChildrenIds(String nodeId, Set<String> idsToDelete) {
-      idsToDelete.add(nodeId);
-
-      // Trova i figli diretti di questo nodo
-      final children = _nodes
-          .where((n) => n.parentId == nodeId)
-          .map((n) => n.id)
-          .toList();
-
-      for (var childId in children) {
-        collectAllChildrenIds(childId, idsToDelete); // Ricorsione
-      }
-    }
-
-    // Insieme di tutti gli ID da cancellare (evita duplicati)
-    final Set<String> allIdsToDelete = {};
-
-    for (var selectedId in selection) {
-      collectAllChildrenIds(selectedId, allIdsToDelete);
-    }
-
-    // 1. Rimuoviamo i nodi dalla lista principale
-    _nodes.removeWhere((node) => allIdsToDelete.contains(node.id));
-
-    // 2. OPZIONALE: Se hai una lista di archi (Edge), rimuoviamo anche i collegamenti interrotti
-    // _edges.removeWhere((edge) => allIdsToDelete.contains(edge.sourceId) || allIdsToDelete.contains(edge.targetId));
-
-    // 3. Svuotiamo la selezione corrente poiché i nodi non esistono più
-    setSelection([]);
-
-    notifyListeners();
-  }
-
-  // 2. STATO PER LA FRECCIA "IN CORSO" (Ghost Edge)
-  String? _draftEdgeSourceId;
-  Offset? _draftEdgeTarget;
-
-  String? get draftEdgeSourceId => _draftEdgeSourceId;
-
-  Offset? get draftEdgeTarget => _draftEdgeTarget;
-
-  bool get isCreatingEdge => _draftEdgeSourceId != null;
-
-  // -- METODI PER GESTIRE GLI EDGE --
-
-  void startEdge(String sourceNodeId) {
-    _draftEdgeSourceId = sourceNodeId;
-    _draftEdgeTarget = null;
-    notifyListeners();
-  }
-
-  void updateDraftEdge(Offset pointerPosition) {
-    if (!isCreatingEdge) return;
-    _draftEdgeTarget = pointerPosition;
-    notifyListeners();
-  }
-
-  void finishEdge(Offset pointerPosition) {
-    if (!isCreatingEdge) return;
-
-    // Troviamo se il mouse è stato rilasciato sopra un nodo
-    GraphNode? targetNode;
-    // Iteriamo al contrario per prendere il nodo "più in alto" in caso di sovrapposizioni
-    for (var node in _nodes.reversed) {
-      final rect = Rect.fromLTWH(
-        node.position.dx,
-        node.position.dy,
-        node.size.width,
-        node.size.height,
-      );
-      if (rect.contains(pointerPosition)) {
-        targetNode = node;
-        break;
-      }
-    }
-
-    // Se abbiamo trovato un nodo bersaglio valido (e non è lo stesso nodo di partenza)
-    if (targetNode != null && targetNode.id != _draftEdgeSourceId) {
-      final newEdge = GraphEdge(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        sourceId: _draftEdgeSourceId!,
-        targetId: targetNode.id,
-      );
-      _edges.add(newEdge);
-    }
-
-    // Resettiamo lo stato
-    _draftEdgeSourceId = null;
-    _draftEdgeTarget = null;
-    notifyListeners();
-  }
-
-  // 1. SELEZIONE LIVE DURANTE IL TRASCINAMENTO DEL RETTANGOLO
-  void updateSelectionFromRect(Rect selectionRect) {
-    List<String> newSelection = [];
-
-    for (var node in _nodes) {
-      // Calcoliamo la dimensione reale del nodo (tenendo conto se è un container collassato)
-      final isCollapsedContainer = node.isContainer && node.isCollapsed;
-      final width = isCollapsedContainer
-          ? GraphNode.defaultNodeSize.width
-          : node.size.width;
-      final height = isCollapsedContainer
-          ? GraphNode.defaultNodeSize.height
-          : (node.isContainer ? node.size.height : node.size.width);
-
-      final nodeRect = Rect.fromLTWH(
-        node.position.dx,
-        node.position.dy,
-        width,
-        height,
-      );
-
-      // CRITERIO: Il nodo deve essere COMPLETAMENTE dentro il rettangolo di selezione
-      if (selectionRect.left <= nodeRect.left &&
-          selectionRect.right >= nodeRect.right &&
-          selectionRect.top <= nodeRect.top &&
-          selectionRect.bottom >= nodeRect.bottom) {
-        newSelection.add(node.id);
-      }
-    }
-
-    // Aggiorna la selezione solo se è cambiata, per evitare cicli di widget rebuild inutili
-    if (_selection.toString() != newSelection.toString()) {
-      _selection = newSelection;
-      notifyListeners();
-    }
-  }
-
-  // 2. TRASCINAMENTO DI GRUPPO AGGIORNATO
   void moveNode(String id, Offset delta) {
-    // Se il nodo trascinato fa parte della selezione, muoviamo TUTTI i nodi selezionati
     if (_selection.contains(id)) {
       for (var node in _nodes) {
         if (_selection.contains(node.id)) {
@@ -466,35 +637,49 @@ class GraphProvider extends ChangeNotifier {
         }
       }
     } else {
-      // Altrimenti muoviamo solo il singolo nodo (e opzionalmente svuotiamo la selezione)
       final node = _nodes.firstWhere((n) => n.id == id);
       node.position += delta;
     }
     notifyListeners();
   }
 
-  // 3. ELIMINAZIONE DEGLI ELEMENTI SELEZIONATI
+  // --- AGGIORNATO: CANCELLAZIONE SINCRO CON LE FRECCE SELEZIONATE ---
   void deleteSelected() {
-    if (_selection.isEmpty) return;
+    if (_selection.isEmpty && _selectedEdgeIds.isEmpty) return;
 
-    // Rimuove i nodi selezionati
+    // 1. Rimuovi i nodi selezionati
     _nodes.removeWhere((node) => _selection.contains(node.id));
 
-    // Rimuove tutti i collegamenti (edges) associati ai nodi eliminati
-    // Nota: Assicurati che '_edges' sia il nome della tua lista di canali/frecce nel provider
-    _edges.removeWhere(
-      (edge) =>
-          _selection.contains(edge.sourceId) ||
-          _selection.contains(edge.targetId),
-    );
+    // 2. Rimuovi gli edge reali partendo dalla mappatura di quelli aggregati selezionati
+    _edges.removeWhere((edge) {
+      // Regola A: Se l'arco è collegato a un nodo rimosso, eliminalo
+      if (_selection.contains(edge.sourceId) ||
+          _selection.contains(edge.targetId)) {
+        return true;
+      }
 
-    // Svuota la selezione
+      // Regola B: Se l'arco fa parte di un gruppo aggregato rimosso, eliminalo
+      final visibleSource = _getVisibleEndpoint(edge.sourceId);
+      final visibleTarget = _getVisibleEndpoint(edge.targetId);
+      final compositeKey = '$visibleSource-$visibleTarget';
+
+      return _selectedEdgeIds.contains(compositeKey);
+    });
+
     _selection.clear();
+    _selectedEdgeIds.clear();
     notifyListeners();
   }
 
   void setZoomScale(double zoomScale) {
     _zoomScale = zoomScale;
     notifyListeners();
+  }
+
+  void panCanvas(Offset delta) {
+    if (_activeTool == ToolType.pan) {
+      _panOffset += delta;
+      notifyListeners();
+    }
   }
 }
