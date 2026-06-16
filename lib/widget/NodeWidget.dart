@@ -18,12 +18,13 @@ class NodeWidget extends StatefulWidget {
 class _NodeWidgetState extends State<NodeWidget> {
   bool _isDragging = false;
   bool _isResizing = false;
+  bool _isHover = false;
+
   late TextEditingController _nameController;
   final FocusNode _textFocusNode = FocusNode();
 
   final double _resizeHandleThickness = 8.0;
 
-  bool _isHover = false;
 
   @override
   void initState() {
@@ -67,34 +68,41 @@ class _NodeWidgetState extends State<NodeWidget> {
     final double textLeftOffset = (textWidth - targetWidth) / 2;
 
     Widget buildTextField({required bool isTopBar}) {
-      return TextField(
-        focusNode: _textFocusNode,
-        controller: _nameController,
-        textAlign: isTopBar ? TextAlign.left : TextAlign.center,
-        maxLines: isTopBar ? 1 : null,
-        decoration: InputDecoration(
-          isDense: true,
-          contentPadding: isTopBar
-              ? const EdgeInsets.only(bottom: 2)
-              : const EdgeInsets.symmetric(vertical: 4),
-          border: InputBorder.none,
-          hintText: widget.node.isContainer ? 'New Container' : 'New Node',
+      // Controlla se il tool attuale è il pan
+      final isPanTool = provider.activeTool == ToolType.pan;
+
+      return IgnorePointer(
+        ignoring: isPanTool, // Ignora i tocchi se siamo in modalità pan
+        child: TextField(
+          focusNode: _textFocusNode,
+          controller: _nameController,
+          readOnly: isPanTool, // Evita che la tastiera si apra
+          textAlign: isTopBar ? TextAlign.left : TextAlign.center,
+          maxLines: isTopBar ? 1 : null,
+          decoration: InputDecoration(
+            isDense: true,
+            contentPadding: isTopBar
+                ? const EdgeInsets.only(bottom: 2)
+                : const EdgeInsets.symmetric(vertical: 4),
+            border: InputBorder.none,
+            hintText: widget.node.isContainer ? 'New Container' : 'New Node',
+          ),
+          style: const TextStyle(
+            color: Colors.black87,
+            fontWeight: FontWeight.bold,
+            fontSize: 13,
+          ),
+          onTap: () {
+            provider.setIsTextEdit(true);
+          },
+          onChanged: (newValue) {
+            provider.setIsTextEdit(true);
+            provider.updateNameNode(widget.node.id, newValue);
+          },
+          onTapOutside: (e) {
+            provider.setIsTextEdit(false);
+          },
         ),
-        style: TextStyle(
-          color: Colors.black87,
-          fontWeight: FontWeight.bold,
-          fontSize: 13,
-        ),
-        onTap: () {
-          provider.setIsTextEdit(true);
-        },
-        onChanged: (newValue) {
-          provider.setIsTextEdit(true);
-          provider.updateNameNode(widget.node.id, newValue);
-        },
-        onTapOutside: (e) {
-          provider.setIsTextEdit(false);
-        },
       );
     }
 
@@ -224,176 +232,12 @@ class _NodeWidgetState extends State<NodeWidget> {
         children: [
           // Box Principale
           Positioned.fill(
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () {
-                if (activeTool == ToolType.pointer || activeTool == ToolType.pan) {
-                  provider.setSelection([widget.node.id]);
-                  setState(() => _isDragging = true);
-                }
-              },
-              onTapDown: (event) {
-                if (activeTool == ToolType.pointer|| activeTool == ToolType.pan) {
-                  provider.setSelection([widget.node.id]);
-                  setState(() => _isDragging = true);
-                }
-              },
-              onTapUp: (event) {
-                if (activeTool == ToolType.pointer|| activeTool == ToolType.pan) {
-                  setState(() => _isDragging = false);
-                }
-              },
-              onPanStart: provider.activeTool != ToolType.pan
-                  ? (details) {
-                      if (_textFocusNode.hasFocus) return;
-                      // --- NUOVA LOGICA: Se il tool è Edge, iniziamo a tracciare la linea
-                      if (activeTool == ToolType.edge) {
-                        provider.startEdge(widget.node.id);
-                        return; // Fermiamo l'esecuzione, non vogliamo trascinare il nodo
-                      }
-                      setState(() => _isDragging = true);
-                      provider.setSelection([widget.node.id]);
-                    }
-                  : null,
-              onPanUpdate: provider.activeTool != ToolType.pan
-                  ? (details) {
-                      if (_isDragging) {
-                        provider.moveNode(widget.node.id, details.delta);
-                      }
-                    }
-                  : null,
-              onPanEnd: provider.activeTool != ToolType.pan
-                  ? (details) {
-                      if (_isDragging) {
-                        setState(() => _isDragging = false);
-                        provider.handleNodeDrop(widget.node.id);
-                      }
-                    }
-                  : null,
-              onPanCancel: provider.activeTool != ToolType.pan
-                  ? () {
-                      if (_isDragging) {
-                        setState(() => _isDragging = false);
-                      }
-                    }
-                  : null,
-              child: MouseRegion(
-                cursor: getCursor(provider),
-                onHover: (event) {
-                  if (provider.activeTool == ToolType.edge) {
-                    setState(() {
-                      _isHover = true;
-                    });
-                  }
-                },
-                onExit: (event) {
-                  if (provider.activeTool == ToolType.edge) {
-                    setState(() {
-                      _isHover = false;
-                    });
-                  }
-                },
-                onEnter: (event) {
-                  if (provider.activeTool == ToolType.edge) {
-                    setState(() {
-                      _isHover = true;
-                    });
-                  }
-                },
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: isSelected(provider)
-                          ? Colors.blue
-                          : Colors.grey.shade300,
-                      width: isSelected(provider) ? 2.0 : 1.0,
-                    ),
-                    boxShadow: _isHover && provider.activeTool == ToolType.edge
-                        ? [
-                            BoxShadow(
-                              color: Colors.blue.withValues(alpha: 0.5),
-                              spreadRadius: 5,
-                              blurRadius: 7,
-                              offset: Offset(
-                                0,
-                                3,
-                              ), // changes position of shadow
-                            ),
-                          ]
-                        : null,
-                  ),
-                  child: Material(
-                    color: Colors.transparent,
-                    child: Stack(
-                      children: [
-                        if (!isExpandedContainer)
-                          Center(
-                            child: Icon(
-                              widget.node.isContainer
-                                  ? Icons.folder
-                                  : Icons.widgets_rounded,
-                              size: targetWidth * 0.5,
-                              color: Colors.black54,
-                            ),
-                          ),
-
-                        if (widget.node.isContainer)
-                          Positioned(
-                            top: 8,
-                            left: 8,
-                            right: 8,
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                GestureDetector(
-                                  onTap: () =>
-                                      provider.toggleCollapse(widget.node.id),
-                                  child: Container(
-                                    padding: const EdgeInsets.all(4),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white,
-                                      borderRadius: BorderRadius.circular(4),
-                                      border: Border.all(
-                                        color: Colors.grey.shade300,
-                                      ),
-                                    ),
-                                    child: Icon(
-                                      widget.node.isCollapsed
-                                          ? Icons.unfold_more
-                                          : Icons.unfold_less,
-                                      size: 16,
-                                      color: Colors.black87,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                if (!widget.node.isCollapsed)
-                                  const Icon(
-                                    Icons.folder_open,
-                                    size: 20,
-                                    color: Colors.black54,
-                                  ),
-                                const SizedBox(width: 8),
-                                if (isExpandedContainer)
-                                  Expanded(
-                                    child: buildTextField(isTopBar: true),
-                                  ),
-                              ],
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
+            child: buildMouserHandler(activeTool, provider, isExpandedContainer, targetWidth, buildTextField),
           ),
 
           // Copertura Resize sui Bordi
           // Copertura Resize sui Bordi (Corretta con details.delta / provider.zoomScale)
-          if (isExpandedContainer && !widget.isGhost) ...[
+          if (isExpandedContainer && !widget.isGhost && provider.activeTool != ToolType.pan) ...[
             buildResizeHandle(
               alignment: Alignment.centerRight,
               cursor: SystemMouseCursors.resizeLeftRight,
@@ -480,6 +324,188 @@ class _NodeWidgetState extends State<NodeWidget> {
         ],
       ),
     );
+  }
+
+  Widget buildMouserHandler(ToolType? activeTool, GraphProvider provider, bool isExpandedContainer, double targetWidth, buildTextField) {
+
+    var mouseRegion = MouseRegion(
+              cursor: getCursor(provider),
+              onHover: (event) {
+                if (provider.activeTool == ToolType.edge) {
+                  setState(() {
+                    _isHover = true;
+                  });
+                }
+              },
+              onExit: (event) {
+                if (provider.activeTool == ToolType.edge) {
+                  setState(() {
+                    _isHover = false;
+                  });
+                }
+              },
+              onEnter: (event) {
+                if (provider.activeTool == ToolType.edge) {
+                  setState(() {
+                    _isHover = true;
+                  });
+                }
+              },
+              child: buildNode(provider, isExpandedContainer, targetWidth, buildTextField),
+            );
+    var gestureDetector = GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () {
+              if (activeTool == ToolType.pointer || activeTool == ToolType.pan) {
+                provider.setSelection([widget.node.id]);
+                setState(() => _isDragging = true);
+              }
+            },
+            onTapDown: (event) {
+              if (activeTool == ToolType.pointer|| activeTool == ToolType.pan) {
+                provider.setSelection([widget.node.id]);
+                setState(() => _isDragging = true);
+              }
+            },
+            onTapUp: (event) {
+              if (activeTool == ToolType.pointer|| activeTool == ToolType.pan) {
+                setState(() => _isDragging = false);
+              }
+            },
+            onPanStart: provider.activeTool != ToolType.pan
+                ? (details) {
+                    if (_textFocusNode.hasFocus) return;
+                    // --- NUOVA LOGICA: Se il tool è Edge, iniziamo a tracciare la linea
+                    if (activeTool == ToolType.edge) {
+                      provider.startEdge(widget.node.id);
+                      return; // Fermiamo l'esecuzione, non vogliamo trascinare il nodo
+                    }
+                    setState(() => _isDragging = true);
+                    provider.setSelection([widget.node.id]);
+                  }
+                : null,
+            onPanUpdate: provider.activeTool != ToolType.pan
+                ? (details) {
+                    if (_isDragging) {
+                      provider.moveNode(widget.node.id, details.delta);
+                    }
+                  }
+                : null,
+            onPanEnd: provider.activeTool != ToolType.pan
+                ? (details) {
+                    if (_isDragging) {
+                      setState(() => _isDragging = false);
+                      provider.handleNodeDrop(widget.node.id);
+                    }
+                  }
+                : null,
+            onPanCancel: provider.activeTool != ToolType.pan
+                ? () {
+                    if (_isDragging) {
+                      setState(() => _isDragging = false);
+                    }
+                  }
+                : null,
+            child: mouseRegion,
+          );
+
+    if (provider.activeTool == ToolType.pan){
+      return buildNode(provider, isExpandedContainer, targetWidth, buildTextField);
+    }
+    return gestureDetector;
+  }
+
+  Container buildNode(GraphProvider provider, bool isExpandedContainer, double targetWidth, buildTextField) {
+    return Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: isSelected(provider)
+                      ? Colors.blue
+                      : Colors.grey.shade300,
+                  width: isSelected(provider) ? 2.0 : 1.0,
+                ),
+                boxShadow: _isHover && provider.activeTool == ToolType.edge
+                    ? [
+                        BoxShadow(
+                          color: Colors.blue.withValues(alpha: 0.5),
+                          spreadRadius: 5,
+                          blurRadius: 7,
+                          offset: Offset(
+                            0,
+                            3,
+                          ), // changes position of shadow
+                        ),
+                      ]
+                    : null,
+              ),
+              child: Material(
+                color: Colors.transparent,
+                child: Stack(
+                  children: [
+                    if (!isExpandedContainer)
+                      Center(
+                        child: Icon(
+                          widget.node.isContainer
+                              ? Icons.folder
+                              : Icons.widgets_rounded,
+                          size: targetWidth * 0.5,
+                          color: Colors.black54,
+                        ),
+                      ),
+
+                    if (widget.node.isContainer)
+                      Positioned(
+                        top: 8,
+                        left: 8,
+                        right: 8,
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            IgnorePointer(
+                              ignoring: provider.activeTool == ToolType.pan,
+                              child: GestureDetector(
+                                onTap: () =>
+                                    provider.toggleCollapse(widget.node.id),
+                                child: Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(4),
+                                    border: Border.all(
+                                      color: Colors.grey.shade300,
+                                    ),
+                                  ),
+                                  child: Icon(
+                                    widget.node.isCollapsed
+                                        ? Icons.unfold_more
+                                        : Icons.unfold_less,
+                                    size: 16,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            if (!widget.node.isCollapsed)
+                              const Icon(
+                                Icons.folder_open,
+                                size: 20,
+                                color: Colors.black54,
+                              ),
+                            const SizedBox(width: 8),
+                            if (isExpandedContainer)
+                              Expanded(
+                                child: buildTextField(isTopBar: true),
+                              ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            );
   }
 
   SystemMouseCursor getCursor(GraphProvider provider) {

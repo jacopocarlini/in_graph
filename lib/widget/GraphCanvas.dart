@@ -21,7 +21,6 @@ class _GraphCanvasState extends State<GraphCanvas>
   final TransformationController _transformController =
       TransformationController();
   final FocusNode _canvasFocusNode = FocusNode();
-
   AnimationController? _animationController;
 
   Offset? _selectionStart;
@@ -68,7 +67,6 @@ class _GraphCanvasState extends State<GraphCanvas>
     if (targetScale == currentScale) return;
 
     final double scaleChange = targetScale / currentScale;
-    print("$targetScale, $scaleChange");
 
     // 2. Troviamo il centro dello schermo (pivot)
     final Size size = MediaQuery.of(context).size;
@@ -108,210 +106,206 @@ class _GraphCanvasState extends State<GraphCanvas>
       body: Stack(
         children: [
           // 1. IL CANVAS (Il tuo codice originale dentro Focus)
-          Focus(
-            focusNode: _canvasFocusNode,
-            autofocus: true,
-            onKeyEvent: (node, event) {
-              if(event is KeyUpEvent){
-                if(event.logicalKey == LogicalKeyboardKey.space){
-                  provider.setTool(ToolType.pointer);
-                }
-              }
-
-              if (event is KeyDownEvent) {
-                if(event.logicalKey == LogicalKeyboardKey.space){
-                  provider.setTool(ToolType.pan);
-                }
-                if(event.logicalKey == LogicalKeyboardKey.escape){
-                  provider.setTool(ToolType.pointer);
-                }
-                if ((event.logicalKey == LogicalKeyboardKey.backspace ||
-                        event.logicalKey == LogicalKeyboardKey.delete) &&
-                    !provider.isTextEdit) {
-                  provider.deleteSelected();
-                  return KeyEventResult.handled;
-                }
-                if (event.character == '1') {
-                  provider.setTool(ToolType.pointer);
-                }
-                if (event.character == '2') {
-                  provider.setTool(ToolType.pan);
-                }
-                if (event.character == '3') {
-                  provider.setTool(ToolType.node);
-                  provider.updatePreviewPosition(localPosition);
-                }
-                if (event.character == '4') {
-                  provider.setTool(ToolType.container);
-                  provider.updatePreviewPosition(localPosition);
-                }
-                if (event.character == '5') {
-                  provider.setTool(ToolType.edge);
-                  provider.setSelection([]);
-                }
-              }
-              return KeyEventResult.ignored;
-            },
-            child: InteractiveViewer(
-              transformationController: _transformController,
-              panEnabled: true,
-              scaleEnabled: true,
-              minScale: 0.3,
-              maxScale: 3.0,
-              constrained: false,
-              boundaryMargin: const EdgeInsets.all(double.infinity),
-              onInteractionEnd: (scaleData) {
-                provider.setZoomScale(
-                  _transformController.value.getMaxScaleOnAxis(),
-                );
-              },
-              child: Listener(
-                onPointerMove: (event) {
-                  print('Listener, onPointerMove');
-                  if (provider.isCreatingEdge) {
-                    provider.updateDraftEdge(event.localPosition);
-                  }
-                },
-                onPointerDown: (event) {
-                  print('Listener, onPointerDown');
-
-                  setState(() {
-                    _isDragging = true;
-                  });
-                },
-                onPointerUp: (event) {
-                  print('Listener, onPointerUp');
-
-                  if (provider.isCreatingEdge) {
-                    provider.finishEdge(event.localPosition);
-                  }
-                  setState(() {
-                    _isDragging = false;
-                  });
-                },
-                onPointerHover: (event) {
-                  print('Listener, onPointerHover');
-
-                  setState(() {
-                    localPosition = event.localPosition;
-                  });
-                  if (activeTool == ToolType.node ||
-                      activeTool == ToolType.container) {
-                    provider.updatePreviewPosition(event.localPosition);
-                  } else if (provider.previewPosition != null) {
-                    provider.updatePreviewPosition(null);
-                  }
-                },
-                child: MouseRegion(
-                  cursor: getCursor(provider),
-                  onExit: (_) {
-                    print('MouseRegion, onExit');
-
-                    provider.updatePreviewPosition(null);
-                  },
-                  child: GestureDetector(
-                    onPanStart: provider.activeTool != ToolType.pan
-                        ? (details) {
-                            print('GestureDetector, onPanStart');
-
-                            if (activeTool == ToolType.edge) {
-                              return; // Fermiamo l'esecuzione, non vogliamo trascinare
-                            }
-                            if (activeTool == ToolType.pointer) {
-                              _canvasFocusNode.requestFocus();
-                              setState(() {
-                                _selectionStart = details.localPosition;
-                                _selectionCurrent = _selectionStart;
-                              });
-                            }
-                          }
-                        : null,
-                    onPanUpdate: provider.activeTool != ToolType.pan
-                        ? (details) {
-                            print('GestureDetector, onPanUpdate');
-
-                            if (activeTool == ToolType.edge) {
-                              return; // Fermiamo l'esecuzione, non vogliamo trascinare
-                            }
-                            if (activeTool == ToolType.pointer) {
-                              if (_selectionStart != null) {
-                                setState(() {
-                                  _selectionCurrent = details.localPosition;
-                                });
-                                final rect = Rect.fromPoints(
-                                  _selectionStart!,
-                                  _selectionCurrent!,
-                                );
-                                provider.updateSelectionFromRect(rect);
-                              }
-                            }
-                          }
-                        : null,
-                    onPanEnd: provider.activeTool != ToolType.pan
-                        ? (details) {
-                            if (provider.activeTool == ToolType.pointer) {
-                              setState(() {
-                                _selectionStart = null;
-                                _selectionCurrent = null;
-                              });
-                            }
-                          }
-                        : null,
-                    onTapUp: provider.activeTool != ToolType.pan
-                        ? (details) {
-                            print('GestureDetector, onTapUp');
-
-                            _canvasFocusNode.requestFocus();
-
-                            if (activeTool == ToolType.pointer) {
-                              // 1. Controlla prima se hai cliccato un edge
-                              provider.trySelectEdgeAt(details.localPosition);
-                            }
-                            if (activeTool == ToolType.node ||
-                                activeTool == ToolType.container) {
-                              final isContainer =
-                                  activeTool == ToolType.container;
-                              final nodeSize = isContainer
-                                  ? GraphNode.defaultContainerSize
-                                  : GraphNode.defaultNodeSize;
-
-                              final centeredPosition = Offset(
-                                details.localPosition.dx - nodeSize.width / 2,
-                                details.localPosition.dy - nodeSize.height / 2,
-                              );
-
-                              var node2Add = GraphNode(
-                                id: DateTime.now().millisecondsSinceEpoch
-                                    .toString(),
-                                name: isContainer
-                                    ? 'New Container'
-                                    : 'New Node',
-                                position: centeredPosition,
-                                size: nodeSize,
-                                isContainer: isContainer,
-                              );
-
-                              provider.addNode(node2Add);
-                              if (isContainer) {
-                                provider.autoAdoptNodes(node2Add);
-                              }
-                              provider.setTool(ToolType.pointer);
-                              provider.setSelection([node2Add.id]);
-                            }
-                          }
-                        : null,
-                    child: buildCanvas(provider, activeTool),
-                  ),
-                ),
-              ),
-            ),
-          ),
+          buildMouseHandler(provider, activeTool),
 
           // 2. I PULSANTI DI ZOOM
           buildZoomChip(provider),
         ],
       ),
     );
+  }
+
+  Focus buildMouseHandler(GraphProvider provider, ToolType activeTool) {
+    final bool canUseGestures = provider.activeTool != ToolType.pan;
+
+    var gestureDetector = GestureDetector(
+                  onPanStart: provider.activeTool != ToolType.pan
+                      ? (details) {
+
+                          if (activeTool == ToolType.edge) {
+                            return; // Fermiamo l'esecuzione, non vogliamo trascinare
+                          }
+                          if (activeTool == ToolType.pointer) {
+                            _canvasFocusNode.requestFocus();
+                            setState(() {
+                              _selectionStart = details.localPosition;
+                              _selectionCurrent = _selectionStart;
+                            });
+                          }
+                        }
+                      : null,
+                  onPanUpdate: provider.activeTool != ToolType.pan
+                      ? (details) {
+
+                          if (activeTool == ToolType.edge) {
+                            return; // Fermiamo l'esecuzione, non vogliamo trascinare
+                          }
+                          if (activeTool == ToolType.pointer) {
+                            if (_selectionStart != null) {
+                              setState(() {
+                                _selectionCurrent = details.localPosition;
+                              });
+                              final rect = Rect.fromPoints(
+                                _selectionStart!,
+                                _selectionCurrent!,
+                              );
+                              provider.updateSelectionFromRect(rect);
+                            }
+                          }
+                        }
+                      : null,
+                  onPanEnd: provider.activeTool != ToolType.pan
+                      ? (details) {
+                          if (provider.activeTool == ToolType.pointer) {
+                            setState(() {
+                              _selectionStart = null;
+                              _selectionCurrent = null;
+                            });
+                          }
+                        }
+                      : null,
+                  onTapUp: provider.activeTool != ToolType.pan
+                      ? (details) {
+
+                          _canvasFocusNode.requestFocus();
+
+                          if (activeTool == ToolType.pointer) {
+                            // 1. Controlla prima se hai cliccato un edge
+                            provider.trySelectEdgeAt(details.localPosition);
+                          }
+                          if (activeTool == ToolType.node ||
+                              activeTool == ToolType.container) {
+                            final isContainer =
+                                activeTool == ToolType.container;
+                            final nodeSize = isContainer
+                                ? GraphNode.defaultContainerSize
+                                : GraphNode.defaultNodeSize;
+
+                            final centeredPosition = Offset(
+                              details.localPosition.dx - nodeSize.width / 2,
+                              details.localPosition.dy - nodeSize.height / 2,
+                            );
+
+                            var node2Add = GraphNode(
+                              id: DateTime.now().millisecondsSinceEpoch
+                                  .toString(),
+                              name: isContainer
+                                  ? 'New Container'
+                                  : 'New Node',
+                              position: centeredPosition,
+                              size: nodeSize,
+                              isContainer: isContainer,
+                            );
+
+                            provider.addNode(node2Add);
+                            if (isContainer) {
+                              provider.autoAdoptNodes(node2Add);
+                            }
+                            provider.setTool(ToolType.pointer);
+                            provider.setSelection([node2Add.id]);
+                          }
+                        }
+                      : null,
+                  child: buildCanvas(provider, activeTool),
+                );
+    var mouseRegion = MouseRegion(
+                cursor: getCursor(provider),
+                onExit: (_) {
+                  provider.updatePreviewPosition(null);
+                },
+                child: canUseGestures ? gestureDetector : buildCanvas(provider, activeTool),
+              );
+    var listener = Listener(
+              onPointerMove: (event) {
+                if (provider.isCreatingEdge) {
+                  provider.updateDraftEdge(event.localPosition);
+                }
+              },
+              onPointerDown: (event) {
+                setState(() {
+                  _isDragging = true;
+                });
+              },
+              onPointerUp: (event) {
+                if (provider.isCreatingEdge) {
+                  provider.finishEdge(event.localPosition);
+                }
+                setState(() {
+                  _isDragging = false;
+                });
+              },
+              onPointerHover: (event) {
+                setState(() {
+                  localPosition = event.localPosition;
+                });
+                if (activeTool == ToolType.node ||
+                    activeTool == ToolType.container) {
+                  provider.updatePreviewPosition(event.localPosition);
+                } else if (provider.previewPosition != null) {
+                  provider.updatePreviewPosition(null);
+                }
+              },
+              child: mouseRegion,
+            );
+    return Focus(
+          focusNode: _canvasFocusNode,
+          autofocus: true,
+          onKeyEvent: (node, event) {
+            if(event is KeyUpEvent){
+              if(event.logicalKey == LogicalKeyboardKey.space){
+                provider.setTool(ToolType.pointer);
+              }
+            }
+            if (event is KeyDownEvent) {
+              if(event.logicalKey == LogicalKeyboardKey.space){
+                provider.setTool(ToolType.pan);
+              }
+              if(event.logicalKey == LogicalKeyboardKey.escape){
+                provider.setTool(ToolType.pointer);
+              }
+              if ((event.logicalKey == LogicalKeyboardKey.backspace ||
+                      event.logicalKey == LogicalKeyboardKey.delete) &&
+                  !provider.isTextEdit) {
+                provider.deleteSelected();
+                return KeyEventResult.handled;
+              }
+              if (event.character == '1') {
+                provider.setTool(ToolType.pointer);
+              }
+              if (event.character == '2') {
+                provider.setTool(ToolType.pan);
+              }
+              if (event.character == '3') {
+                provider.setTool(ToolType.node);
+                provider.updatePreviewPosition(localPosition);
+              }
+              if (event.character == '4') {
+                provider.setTool(ToolType.container);
+                provider.updatePreviewPosition(localPosition);
+              }
+              if (event.character == '5') {
+                provider.setTool(ToolType.edge);
+                provider.setSelection([]);
+              }
+            }
+            return KeyEventResult.ignored;
+          },
+          child: InteractiveViewer(
+            transformationController: _transformController,
+            panEnabled: true,
+            scaleEnabled: true,
+            minScale: 0.3,
+            maxScale: 3.0,
+            constrained: false,
+            boundaryMargin: const EdgeInsets.all(double.infinity),
+            onInteractionEnd: (scaleData) {
+              provider.setZoomScale(
+                _transformController.value.getMaxScaleOnAxis(),
+              );
+            },
+            child: listener,
+          ),
+        );
   }
 
   SystemMouseCursor getCursor(GraphProvider provider) {
@@ -334,7 +328,7 @@ class _GraphCanvasState extends State<GraphCanvas>
       child: Center(
         child: Card(
           elevation: 4,
-          color: const Color(0xFFE7EAF1),
+          color: const Color(0xFFFFFFFF),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(24),
           ),
