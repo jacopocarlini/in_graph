@@ -127,8 +127,32 @@ class GraphProvider extends ChangeNotifier {
   // --- METODI DEI TOOL E SELEZIONE ---
   void setSelection(List<String> ids) {
     _selection = ids;
-    _selectedEdgeIds
-        .clear(); // Reset delle frecce se viene forzata la selezione di nodi
+    _selectedEdgeIds.clear(); // Reset delle frecce se viene forzata la selezione di nodi
+
+    // --- NUOVA LOGICA: Porta in primo piano (Bring to Front) ---
+    if (ids.isNotEmpty) {
+      final Set<String> allIdsToFront = Set.from(ids);
+
+      // Troviamo anche tutti i figli/nipoti, perché devono salire in primo piano assieme al parent
+      void findDescendants(String parentId) {
+        for (var node in _nodes) {
+          if (node.parentId == parentId && !allIdsToFront.contains(node.id)) {
+            allIdsToFront.add(node.id);
+            findDescendants(node.id);
+          }
+        }
+      }
+
+      for (var id in ids) {
+        findDescendants(id);
+      }
+
+      // Estraiamo i nodi coinvolti e li rimettiamo in fondo alla lista
+      final nodesToFront = _nodes.where((n) => allIdsToFront.contains(n.id)).toList();
+      _nodes.removeWhere((n) => allIdsToFront.contains(n.id));
+      _nodes.addAll(nodesToFront);
+    }
+
     notifyListeners();
   }
 
@@ -630,16 +654,38 @@ class GraphProvider extends ChangeNotifier {
   }
 
   void moveNode(String id, Offset delta) {
-    if (_selection.contains(id)) {
+    // 1. Identifica i nodi che l'utente sta muovendo esplicitamente
+    final Set<String> baseIdsToMove = _selection.contains(id)
+        ? _selection.toSet()
+        : {id};
+
+    // 2. Prepara un Set per raccogliere i nodi espliciti + tutti i loro discendenti
+    final Set<String> allIdsToMove = Set.from(baseIdsToMove);
+
+    // 3. Funzione ricorsiva per trovare figli, nipoti, ecc.
+    void findDescendants(String parentId) {
       for (var node in _nodes) {
-        if (_selection.contains(node.id)) {
-          node.position += delta;
+        // Se il nodo ha come parent quello che stiamo controllando
+        // e non è già stato aggiunto (evita doppi spostamenti se è già selezionato)
+        if (node.parentId == parentId && !allIdsToMove.contains(node.id)) {
+          allIdsToMove.add(node.id);
+          findDescendants(node.id); // Cerca i figli di questo figlio
         }
       }
-    } else {
-      final node = _nodes.firstWhere((n) => n.id == id);
-      node.position += delta;
     }
+
+    // 4. Popola il set con i discendenti di tutti i nodi "base"
+    for (var baseId in baseIdsToMove) {
+      findDescendants(baseId);
+    }
+
+    // 5. Applica il delta a tutto il blocco (parent e figli)
+    for (var node in _nodes) {
+      if (allIdsToMove.contains(node.id)) {
+        node.position += delta;
+      }
+    }
+
     notifyListeners();
   }
 

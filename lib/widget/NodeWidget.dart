@@ -173,7 +173,7 @@ class _NodeWidgetState extends State<NodeWidget> {
       child: Opacity(
         opacity: widget.isGhost ? 0.5 : 1.0,
         child: IgnorePointer(
-          ignoring: widget.isGhost,
+          ignoring: widget.isGhost || activeTool == ToolType.container || activeTool == ToolType.node,
           child: TapRegion(
             behavior: HitTestBehavior.translucent,
             onTapOutside: (pointerDownEvent) {
