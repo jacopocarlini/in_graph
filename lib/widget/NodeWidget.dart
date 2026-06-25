@@ -67,11 +67,9 @@ class _NodeWidgetState extends State<NodeWidget> {
           top: node.position.dy,
           child: Opacity(
             opacity: widget.isGhost ? 0.5 : 1.0,
-            child: IgnorePointer(
-              ignoring: provider.activeTool != ToolType.pointer,
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: [
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
                   // Il Box del Nodo/Container
                   Container(
                     width: targetWidth,
@@ -134,7 +132,6 @@ class _NodeWidgetState extends State<NodeWidget> {
               ),
             ),
           ),
-        ),
 
         // Testo in basso
         if (showTextBelow) ...[

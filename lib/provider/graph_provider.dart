@@ -168,10 +168,24 @@ class GraphProvider extends ChangeNotifier {
     _selectedEdges.clear();
 
     final aggregatedEdges = getAggregatedEdges();
-    final Map<String, List<String>> edgesBySource = {};
+    final Map<String, List<String>> nodePorts = {};
+
     for (var edge in aggregatedEdges) {
-      edgesBySource.putIfAbsent(edge.sourceId, () => []).add(edge.id);
+      final source = _nodes.cast<GraphNode?>().firstWhere(
+            (n) => n?.id == edge.sourceId,
+        orElse: () => null,
+      );
+      final target = _nodes.cast<GraphNode?>().firstWhere(
+            (n) => n?.id == edge.targetId,
+        orElse: () => null,
+      );
+      if (source == null || target == null || source.id == target.id) continue;
+
+      nodePorts.putIfAbsent(source.id, () => []).add(edge.id);
+      nodePorts.putIfAbsent(target.id, () => []).add(edge.id);
     }
+
+    String? bestEdgeId;
 
     for (var edge in aggregatedEdges) {
       final source = _nodes.cast<GraphNode?>().firstWhere(
@@ -197,15 +211,17 @@ class GraphProvider extends ChangeNotifier {
         target.size.height,
       );
 
+      // Se il click è dentro il rettangolo di un nodo sorgente o target, 
+      // ignoriamo la freccia per dare precedenza al nodo.
       if (sRect.contains(localPosition) || tRect.contains(localPosition)) {
-        continue; // Passa alla prossima freccia, lasciando il click libero per il nodo
+        continue;
       }
 
-      final sourceIndex = edgesBySource[edge.sourceId]!.indexOf(edge.id);
-      final sourceTotal = edgesBySource[edge.sourceId]!.length;
+      final sourceIndex = nodePorts[source.id]!.indexOf(edge.id);
+      final sourceTotal = nodePorts[source.id]!.length;
 
-      final targetIndex = edgesBySource[edge.targetId]?.indexOf(edge.id) ?? 0;
-      final targetTotal = edgesBySource[edge.targetId]?.length ?? 1;
+      final targetIndex = nodePorts[target.id]!.indexOf(edge.id);
+      final targetTotal = nodePorts[target.id]!.length;
 
       final dx = tRect.center.dx - sRect.center.dx;
       final dy = tRect.center.dy - sRect.center.dy;
@@ -213,34 +229,24 @@ class GraphProvider extends ChangeNotifier {
       Offset sOffset = Offset.zero;
       Offset tOffset = Offset.zero;
 
+      const double minStep = 20.0;
+
       if (dx.abs() > dy.abs()) {
         if (sourceTotal > 1) {
-          final step = ((source.size.height * 0.6) / (sourceTotal - 1)).clamp(
-            8.0,
-            16.0,
-          );
+          final step = ((source.size.height * 0.7) / (sourceTotal - 1)).clamp(minStep, 25.0);
           sOffset = Offset(0, (sourceIndex - (sourceTotal - 1) / 2) * step);
         }
         if (targetTotal > 1) {
-          final step = ((target.size.height * 0.6) / (targetTotal - 1)).clamp(
-            8.0,
-            16.0,
-          );
+          final step = ((target.size.height * 0.7) / (targetTotal - 1)).clamp(minStep, 25.0);
           tOffset = Offset(0, (targetIndex - (targetTotal - 1) / 2) * step);
         }
       } else {
         if (sourceTotal > 1) {
-          final step = ((source.size.width * 0.6) / (sourceTotal - 1)).clamp(
-            8.0,
-            16.0,
-          );
+          final step = ((source.size.width * 0.7) / (sourceTotal - 1)).clamp(minStep, 25.0);
           sOffset = Offset((sourceIndex - (sourceTotal - 1) / 2) * step, 0);
         }
         if (targetTotal > 1) {
-          final step = ((target.size.width * 0.6) / (targetTotal - 1)).clamp(
-            8.0,
-            16.0,
-          );
+          final step = ((target.size.width * 0.7) / (targetTotal - 1)).clamp(minStep, 25.0);
           tOffset = Offset((targetIndex - (targetTotal - 1) / 2) * step, 0);
         }
       }
@@ -249,9 +255,8 @@ class GraphProvider extends ChangeNotifier {
       final virtualTRect = tRect.shift(tOffset);
 
       final int globalIndex = aggregatedEdges.indexOf(edge);
-      final double laneOffset = (globalIndex % 6) * 12.0;
+      final double laneOffset = (globalIndex % 6) * 20.0;
 
-      // === OSTACOLI: Usiamo la stessa logica del Painter ===
       List<Rect> obstacles = [];
       for (var node in visibleNodes) {
         if (node.id == edge.sourceId || node.id == edge.targetId) continue;
@@ -279,15 +284,24 @@ class GraphProvider extends ChangeNotifier {
         laneOffset: laneOffset,
       );
 
-      if (EdgeRoutingService.isPointNearEdge(localPosition, points, 12.0)) {
-        _selectedEdges.add(edge.id);
-        _selectionNodes.clear();
-        notifyListeners();
-        return true; // <--- AGGIUNGI QUESTO: Freccia trovata!
+      // Usiamo una soglia di hit-test un po' più generosa (16.0 pixel)
+      if (EdgeRoutingService.isPointNearEdge(localPosition, points, 16.0)) {
+        // Trovata! Invece di ritornare subito, cerchiamo se ce n'è una più vicina
+        // (utile se sono molto ammassate)
+        bestEdgeId = edge.id;
+        break; // Per ora prendiamo la prima che capita ma con logica sincronizzata
       }
     }
+
+    if (bestEdgeId != null) {
+      _selectedEdges.add(bestEdgeId);
+      _selectionNodes.clear();
+      notifyListeners();
+      return true;
+    }
+
     notifyListeners();
-    return false; // <--- AGGIUNGI QUESTO: Nessuna freccia
+    return false;
   }
 
   void updateSelectionFromRect(Rect selectionRect) {
@@ -357,34 +371,24 @@ class GraphProvider extends ChangeNotifier {
       Offset sOffset = Offset.zero;
       Offset tOffset = Offset.zero;
 
+      const double minStep = 20.0;
+
       if (dx.abs() > dy.abs()) {
         if (sourceTotal > 1) {
-          final step = ((source.size.height * 0.6) / (sourceTotal - 1)).clamp(
-            8.0,
-            16.0,
-          );
+          final step = ((source.size.height * 0.7) / (sourceTotal - 1)).clamp(minStep, 25.0);
           sOffset = Offset(0, (sourceIndex - (sourceTotal - 1) / 2) * step);
         }
         if (targetTotal > 1) {
-          final step = ((target.size.height * 0.6) / (targetTotal - 1)).clamp(
-            8.0,
-            16.0,
-          );
+          final step = ((target.size.height * 0.7) / (targetTotal - 1)).clamp(minStep, 25.0);
           tOffset = Offset(0, (targetIndex - (targetTotal - 1) / 2) * step);
         }
       } else {
         if (sourceTotal > 1) {
-          final step = ((source.size.width * 0.6) / (sourceTotal - 1)).clamp(
-            8.0,
-            16.0,
-          );
+          final step = ((source.size.width * 0.7) / (sourceTotal - 1)).clamp(minStep, 25.0);
           sOffset = Offset((sourceIndex - (sourceTotal - 1) / 2) * step, 0);
         }
         if (targetTotal > 1) {
-          final step = ((target.size.width * 0.6) / (targetTotal - 1)).clamp(
-            8.0,
-            16.0,
-          );
+          final step = ((target.size.width * 0.7) / (targetTotal - 1)).clamp(minStep, 25.0);
           tOffset = Offset((targetIndex - (targetTotal - 1) / 2) * step, 0);
         }
       }
@@ -393,7 +397,7 @@ class GraphProvider extends ChangeNotifier {
       final virtualTRect = tRect.shift(tOffset);
 
       final int globalIndex = aggregatedEdges.indexOf(edge);
-      final double laneOffset = (globalIndex % 6) * 12.0;
+      final double laneOffset = (globalIndex % 6) * 20.0;
 
       List<Rect> obstacles = [];
       for (var node in _nodes) {
@@ -1082,25 +1086,26 @@ class GraphProvider extends ChangeNotifier {
   }
 
   void handlePointerDown(Offset position) {
-    _isTextEdit = false;
     if (_activeTool == ToolType.pan) {
       _interactionMode = InteractionMode.panning;
+      _isTextEdit = false;
       notifyListeners();
-      return; // Lasciamo fare all'InteractiveViewer
+      return;
     }
 
     _interactionMode = InteractionMode.clicking;
-    // Non chiamiamo notifyListeners qui se non strettamente necessario, 
-    // lo faranno i metodi di selezione sotto.
 
     // 1. Tool Aggiunta Nodi/Container
     if (_activeTool == ToolType.node || _activeTool == ToolType.container) {
-      _createNewNodeAt(position); // Il tuo codice esistente per aggiungere nodi
+      // Se clicchiamo sopra un nodo esistente, non ne creiamo uno nuovo ma lo selezioniamo
+      _isTextEdit = false;
+      _createNewNodeAt(position);
       return;
     }
 
     // 2. Tool Creazione Archi
     if (_activeTool == ToolType.edge) {
+      _isTextEdit = false;
       final node = _hitTestNodes(position);
       if (node != null) {
         startEdge(node.id);
@@ -1114,30 +1119,41 @@ class GraphProvider extends ChangeNotifier {
       // A. Ho colpito una maniglia di ridimensionamento?
       final handle = _hitTestResizeHandles(position);
       if (handle != null) {
+        _isTextEdit = false;
         _interactionMode = InteractionMode.resizingNode;
         _activeResizeHandle = handle;
         _interactingNodeId = _selectionNodes.first;
         return;
       }
 
-      // C. Ho colpito un Arco? (Il tuo metodo modificato per ritornare bool)
+      // C. Ho colpito un Arco?
       if (trySelectEdgeAt(position)) {
-        return; // Freccia selezionata, non facciamo altro
+        _isTextEdit = false;
+        return;
       }
 
       // B. Ho colpito un Nodo?
       final node = _hitTestNodes(position);
       if (node != null) {
+        // Se il nodo era già selezionato, forse stiamo cliccando sul testo.
+        // NON resettiamo _isTextEdit qui se il click è dentro il nodo,
+        // perché il TextField gestirà il suo stato.
+        // Tuttavia, se è un click per trascinare, lo resettiamo dopo.
+        
         _interactionMode = InteractionMode.draggingNode;
         _interactingNodeId = node.id;
-        setSelection(node.id); // Aggiorna selezione
+        
+        if (!selection.contains(node.id)) {
+           setSelection(node.id);
+           _isTextEdit = false;
+        }
         return;
       }
 
       // D. Ho cliccato nel vuoto: iniziamo la selezione rettangolare
+      _isTextEdit = false;
       clearSelection();
       _interactionMode = InteractionMode.rectSelecting;
-      // Imposta le coordinate iniziali del tuo rettangolo qui
       _startPosition = position;
       _currentPosition = null;
     }
@@ -1357,4 +1373,5 @@ class GraphProvider extends ChangeNotifier {
       currentParentId = _nodes[pIndex].parentId;
     }
     return false;
-  }}
+  }
+}

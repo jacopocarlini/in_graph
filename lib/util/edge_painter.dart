@@ -89,7 +89,7 @@ class EdgePainter extends CustomPainter {
       final virtualSRect = sRect.shift(sOffset);
       final virtualTRect = tRect.shift(tOffset);
 
-      final int globalIndex = provider.edges.indexOf(edge);
+      final int globalIndex = aggregatedEdges.indexOf(edge);
       // Aumentiamo il laneOffset a 20 per distanziare i percorsi ortogonali
       final double laneOffset = (globalIndex % 6) * 20.0;
 
