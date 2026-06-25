@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -47,6 +48,7 @@ class _NodeWidgetState extends State<NodeWidget> {
     var node = widget.node;
     final provider = context.watch<GraphProvider>();
     final isSelected = provider.selection.contains(node.id);
+    final isHovered = provider.hoveredNodeId == node.id && provider.activeTool == ToolType.edge;
 
     final targetWidth = node.size.width;
     final targetHeight = node.size.height;
@@ -77,13 +79,44 @@ class _NodeWidgetState extends State<NodeWidget> {
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: isSelected ? Colors.blue : Colors.grey.shade300,
-                        width: isSelected ? 2.0 : 1.0,
+                      border: node.borderStyle == BorderStyleType.solid
+                          ? Border.all(
+                              color: node.color,
+                              width: 1.5,
+                            )
+                          : null,
+                    ),
+                    child: node.borderStyle == BorderStyleType.dashed
+                        ? CustomPaint(
+                            painter: DashedBorderPainter(
+                              color: node.color,
+                              strokeWidth: 1.5,
+                              borderRadius: 16,
+                            ),
+                            child: buildNode(node, provider),
+                          )
+                        : buildNode(node, provider),
+                  ),
+
+                  // Rettangolo di selezione esterno (Blue Glow/Border)
+                  if (isSelected || isHovered)
+                    Positioned(
+                      left: -3,
+                      top: -3,
+                      right: -3,
+                      bottom: -3,
+                      child: IgnorePointer(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color: Colors.blue.withOpacity(0.6),
+                              width: 2.0,
+                            ),
+                            borderRadius: BorderRadius.circular(19),
+                          ),
+                        ),
                       ),
                     ),
-                    child: buildNode(node, provider),
-                  ),
 
                   // ==========================================
                   // NUOVO: Maniglie e Cursori di Resize
@@ -281,9 +314,9 @@ class _NodeWidgetState extends State<NodeWidget> {
               const SizedBox(width: 4),
 
               Icon(
-                node.isContainer ? Icons.folder : Icons.widgets,
+                node.icon ?? (node.isContainer ? Icons.folder : Icons.widgets),
                 size: 20,
-                color: Colors.grey.shade600,
+                color: node.color,
               ),
 
               const SizedBox(width: 8),
@@ -323,9 +356,9 @@ class _NodeWidgetState extends State<NodeWidget> {
         // Icona principale al centro del box
         Center(
           child: Icon(
-            node.isContainer ? Icons.folder : Icons.widgets,
+            node.icon ?? (node.isContainer ? Icons.folder : Icons.widgets),
             size: 32,
-            color: Colors.grey.shade600,
+            color: node.color,
           ),
         ),
         if (node.isContainer)
@@ -366,7 +399,6 @@ class _NodeWidgetState extends State<NodeWidget> {
       controller: _nameController,
       onTap: () => provider.setIsTextEdit(true),
       onTapOutside: (_) {
-        print('out');
         provider.setIsTextEdit(false);
         _textFocusNode.unfocus();
         FocusScope.of(context).unfocus();
@@ -399,5 +431,56 @@ class _NodeWidgetState extends State<NodeWidget> {
         fontSize: 13,
       ),
     );
+  }
+}
+
+class DashedBorderPainter extends CustomPainter {
+  final Color color;
+  final double strokeWidth;
+  final double borderRadius;
+  final double dashWidth;
+  final double dashSpace;
+
+  DashedBorderPainter({
+    required this.color,
+    this.strokeWidth = 1.0,
+    this.borderRadius = 0,
+    this.dashWidth = 5.0,
+    this.dashSpace = 3.0,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = strokeWidth
+      ..style = PaintingStyle.stroke;
+
+    final RRect rrect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(0, 0, size.width, size.height),
+      Radius.circular(borderRadius),
+    );
+
+    final Path path = Path()..addRRect(rrect);
+
+    final Path dashedPath = Path();
+    for (final PathMetric metric in path.computeMetrics()) {
+      double distance = 0.0;
+      while (distance < metric.length) {
+        dashedPath.addPath(
+          metric.extractPath(distance, distance + dashWidth),
+          Offset.zero,
+        );
+        distance += dashWidth + dashSpace;
+      }
+    }
+    canvas.drawPath(dashedPath, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant DashedBorderPainter oldDelegate) {
+    return oldDelegate.color != color ||
+        oldDelegate.strokeWidth != strokeWidth ||
+        oldDelegate.borderRadius != borderRadius;
   }
 }

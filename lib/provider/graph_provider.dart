@@ -35,10 +35,10 @@ class GraphProvider extends ChangeNotifier {
   Offset? _draftEdgeTarget;
   Alignment? _activeResizeHandle;
   String? _interactingNodeId;
+  String? _hoveredNodeId;
 
-  // Controlla se la telecamera può muoversi
-  bool get canPanCanvas =>
-      _activeTool == ToolType.pan || _interactionMode == InteractionMode.idle;
+  // Controlla se la telecamera può muoversi: solo se il tool attivo è il PAN
+  bool get canPanCanvas => _activeTool == ToolType.pan;
 
 
   InteractionMode get interactionMode => _interactionMode;
@@ -64,6 +64,8 @@ class GraphProvider extends ChangeNotifier {
   bool get isTextEdit => _isTextEdit;
 
   double get zoomScale => _zoomScale ?? 1.0;
+
+  String? get hoveredNodeId => _hoveredNodeId;
 
   TempEdge? get tempEdge {
     if (_draftEdgeSourceId != null && _draftEdgeTarget != null) {
@@ -99,7 +101,23 @@ class GraphProvider extends ChangeNotifier {
 
   void updateCurrentPosition(Offset position){
     _currentPosition = position;
-    notifyListeners();
+    _updateHoverState(position);
+  }
+
+  void _updateHoverState(Offset position) {
+    // Gestione Hover per il tool Edge (sia in hover libero che durante il drag della freccia)
+    if (_activeTool == ToolType.edge) {
+      final hitNode = _hitTestNodes(position);
+      if (_hoveredNodeId != hitNode?.id) {
+        _hoveredNodeId = hitNode?.id;
+        notifyListeners();
+      }
+    } else if (_hoveredNodeId != null) {
+      _hoveredNodeId = null;
+      notifyListeners();
+    } else {
+      notifyListeners();
+    }
   }
 
 
@@ -233,15 +251,11 @@ class GraphProvider extends ChangeNotifier {
       final int globalIndex = aggregatedEdges.indexOf(edge);
       final double laneOffset = (globalIndex % 6) * 12.0;
 
-      // ==========================================
-      // MODIFICA QUI: GESTIONE OSTACOLI
-      // ==========================================
+      // === OSTACOLI: Usiamo la stessa logica del Painter ===
       List<Rect> obstacles = [];
-      for (var node in _nodes) {
-        // Ignora i nodi sorgente e target
+      for (var node in visibleNodes) {
         if (node.id == edge.sourceId || node.id == edge.targetId) continue;
 
-        // Ignora i container se racchiudono la sorgente o il target della freccia
         if (node.isContainer &&
             (_isAncestor(node.id, edge.sourceId) ||
                 _isAncestor(node.id, edge.targetId))) {
@@ -478,7 +492,117 @@ class GraphProvider extends ChangeNotifier {
 
   void updateNameNode(String id, String name) {
     final index = _nodes.indexWhere((n) => n.id == id);
-    _nodes[index] = _nodes[index].copyWith(name: name);
+    if (index != -1) {
+      _nodes[index] = _nodes[index].copyWith(name: name);
+      notifyListeners();
+    }
+  }
+
+  void updateNodeIcon(String id, IconData? icon) {
+    final index = _nodes.indexWhere((n) => n.id == id);
+    if (index != -1) {
+      _nodes[index] = _nodes[index].copyWith(
+        icon: icon,
+        clearIcon: icon == null,
+      );
+      notifyListeners();
+    }
+  }
+
+  void updateNodeColor(String id, Color color) {
+    final index = _nodes.indexWhere((n) => n.id == id);
+    if (index != -1) {
+      _nodes[index] = _nodes[index].copyWith(color: color);
+      notifyListeners();
+    }
+  }
+
+  void updateNodeBorderStyle(String id, BorderStyleType borderStyle) {
+    final index = _nodes.indexWhere((n) => n.id == id);
+    if (index != -1) {
+      _nodes[index] = _nodes[index].copyWith(borderStyle: borderStyle);
+      notifyListeners();
+    }
+  }
+
+  void updateNodeCardinality(String id, CardinalityType cardinality) {
+    final index = _nodes.indexWhere((n) => n.id == id);
+    if (index != -1) {
+      _nodes[index] = _nodes[index].copyWith(cardinality: cardinality);
+      notifyListeners();
+    }
+  }
+
+  void updateNodeCardinalityRange(String id, String? start, String? end) {
+    final index = _nodes.indexWhere((n) => n.id == id);
+    if (index != -1) {
+      _nodes[index] = _nodes[index].copyWith(
+        cardinalityStart: start,
+        cardinalityEnd: end,
+        clearCardinalityStart: start == null || start.isEmpty,
+        clearCardinalityEnd: end == null || end.isEmpty,
+      );
+      notifyListeners();
+    }
+  }
+
+  void updateEdgeColor(String id, Color color) {
+    // Gestiamo sia edge reali che aggregati (usando la logica di mappatura se necessario)
+    // Per ora, cerchiamo l'edge reale.
+    final index = _edges.indexWhere((e) => e.id == id);
+    if (index != -1) {
+      _edges[index] = _edges[index].copyWith(color: color);
+    } else {
+      // Se è un edge aggregato, cerchiamo tutti gli edge reali sottostanti
+      for (int i = 0; i < _edges.length; i++) {
+        final visibleSource = _getVisibleEndpoint(_edges[i].sourceId);
+        final visibleTarget = _getVisibleEndpoint(_edges[i].targetId);
+        final compositeKey = '$visibleSource-$visibleTarget';
+        if (compositeKey == id) {
+          _edges[i] = _edges[i].copyWith(color: color);
+        }
+      }
+    }
+    notifyListeners();
+  }
+
+  void updateEdgeBorderStyle(String id, BorderStyleType style) {
+    final index = _edges.indexWhere((e) => e.id == id);
+    if (index != -1) {
+      _edges[index] = _edges[index].copyWith(borderStyle: style);
+    } else {
+      for (int i = 0; i < _edges.length; i++) {
+        final visibleSource = _getVisibleEndpoint(_edges[i].sourceId);
+        final visibleTarget = _getVisibleEndpoint(_edges[i].targetId);
+        final compositeKey = '$visibleSource-$visibleTarget';
+        if (compositeKey == id) {
+          _edges[i] = _edges[i].copyWith(borderStyle: style);
+        }
+      }
+    }
+    notifyListeners();
+  }
+
+  void updateEdgeArrows(String id, {bool? showSource, bool? showTarget}) {
+    final index = _edges.indexWhere((e) => e.id == id);
+    if (index != -1) {
+      _edges[index] = _edges[index].copyWith(
+        showSourceArrow: showSource,
+        showTargetArrow: showTarget,
+      );
+    } else {
+      for (int i = 0; i < _edges.length; i++) {
+        final visibleSource = _getVisibleEndpoint(_edges[i].sourceId);
+        final visibleTarget = _getVisibleEndpoint(_edges[i].targetId);
+        final compositeKey = '$visibleSource-$visibleTarget';
+        if (compositeKey == id) {
+          _edges[i] = _edges[i].copyWith(
+            showSourceArrow: showSource,
+            showTargetArrow: showTarget,
+          );
+        }
+      }
+    }
     notifyListeners();
   }
 
@@ -746,6 +870,10 @@ class GraphProvider extends ChangeNotifier {
           sourceId: existing.sourceId,
           targetId: existing.targetId,
           count: existing.count + 1,
+          color: existing.color,
+          borderStyle: existing.borderStyle,
+          showSourceArrow: existing.showSourceArrow,
+          showTargetArrow: existing.showTargetArrow,
         );
       } else {
         aggregatedMap[key] = AggregatedEdge(
@@ -753,6 +881,10 @@ class GraphProvider extends ChangeNotifier {
           sourceId: visibleSource,
           targetId: visibleTarget,
           count: 1,
+          color: edge.color,
+          borderStyle: edge.borderStyle,
+          showSourceArrow: edge.showSourceArrow,
+          showTargetArrow: edge.showTargetArrow,
         );
       }
     }
@@ -768,6 +900,7 @@ class GraphProvider extends ChangeNotifier {
   void updateDraftEdge(Offset pointerPosition) {
     if (!isCreatingEdge) return;
     _draftEdgeTarget = pointerPosition;
+    _updateHoverState(pointerPosition);
     notifyListeners();
   }
 
@@ -821,6 +954,10 @@ class GraphProvider extends ChangeNotifier {
   // ==========================================
   // HELPER GERARCHIA E OSTACOLI
   // ==========================================
+  bool isAncestor(String ancestorId, String childId) {
+    return _isAncestor(ancestorId, childId);
+  }
+
   bool _isAncestor(String ancestorId, String childId) {
     String? currentId = childId;
     Set<String> visited = {childId}; // Sicurezza anti-loop
@@ -950,10 +1087,11 @@ class GraphProvider extends ChangeNotifier {
       _interactionMode = InteractionMode.panning;
       notifyListeners();
       return; // Lasciamo fare all'InteractiveViewer
-    } else{
-      _interactionMode = InteractionMode.clicking;
-      notifyListeners();
     }
+
+    _interactionMode = InteractionMode.clicking;
+    // Non chiamiamo notifyListeners qui se non strettamente necessario, 
+    // lo faranno i metodi di selezione sotto.
 
     // 1. Tool Aggiunta Nodi/Container
     if (_activeTool == ToolType.node || _activeTool == ToolType.container) {

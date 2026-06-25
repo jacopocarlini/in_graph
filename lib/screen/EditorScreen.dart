@@ -30,8 +30,6 @@ class EditorScreen extends StatelessWidget {
                     child: GraphCanvas(),
                   ),
                 ),
-
-                const LayersPanel(), // Immagino abbia una sua larghezza fissa
               ],
             ),
           ),

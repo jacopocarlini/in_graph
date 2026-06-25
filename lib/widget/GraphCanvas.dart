@@ -8,6 +8,7 @@ import '../model/graph_models.dart';
 import '../provider/graph_provider.dart';
 import 'NodeWidget.dart';
 import '../util/edge_painter.dart';
+import 'PropertySidebar.dart';
 
 class GraphCanvas extends StatefulWidget {
   const GraphCanvas({super.key});
@@ -110,72 +111,79 @@ class _GraphCanvasState extends State<GraphCanvas>
     var activeTool = provider.activeTool;
 
     return Scaffold(
-      body: Stack(
+      body: Row(
         children: [
-          Focus(
-            focusNode: _canvasFocusNode,
-            autofocus: true,
-            onKeyEvent: (node, event) {
-              return handleShortcut(node, event, provider);
-            }, // I tuoi shortcut
-            child: InteractiveViewer(
-              transformationController: _transformController,
-              // Se il provider sta trascinando un nodo, disabilitiamo il pan della telecamera!
-              panEnabled: provider.canPanCanvas,
-              scaleEnabled: true,
-              minScale: 0.3,
-              maxScale: 3.0,
-              constrained: false,
-              boundaryMargin: const EdgeInsets.all(double.infinity),
-              child: Listener(
-                // IL CUORE DELL'INPUT CENTRALIZZATO
-                onPointerDown: (event) {
-                  if (!_canvasFocusNode.hasFocus) {
-                    _canvasFocusNode.requestFocus();
-                  }
-                  provider.handlePointerDown(event.localPosition);
-                },
-                onPointerMove: (event) => provider.handlePointerMove(
-                  event.localPosition,
-                  event.localDelta,
-                ),
-                onPointerUp: (event) =>
-                    provider.handlePointerUp(event.localPosition),
-                onPointerHover: (event) =>
-                    provider.updateCurrentPosition(event.localPosition),
-                child: MouseRegion(
-                  cursor: buildCursor(provider),
-                  child: SizedBox(
-                    width: 10000,
-                    height: 10000,
-                    child: Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        ...buildNodes(provider),
-                        Positioned.fill(
-                          child: IgnorePointer(
-                            child: CustomPaint(
-                              painter: EdgePainter(provider: provider),
-                            ),
+          Expanded(
+            child: Stack(
+              children: [
+                Focus(
+                  focusNode: _canvasFocusNode,
+                  autofocus: true,
+                  onKeyEvent: (node, event) {
+                    return handleShortcut(node, event, provider);
+                  }, // I tuoi shortcut
+                  child: InteractiveViewer(
+                    transformationController: _transformController,
+                    // Se il provider sta trascinando un nodo, disabilitiamo il pan della telecamera!
+                    panEnabled: provider.canPanCanvas,
+                    scaleEnabled: true,
+                    minScale: 0.3,
+                    maxScale: 3.0,
+                    constrained: false,
+                    boundaryMargin: const EdgeInsets.all(double.infinity),
+                    child: Listener(
+                      // IL CUORE DELL'INPUT CENTRALIZZATO
+                      onPointerDown: (event) {
+                        if (!_canvasFocusNode.hasFocus) {
+                          _canvasFocusNode.requestFocus();
+                        }
+                        provider.handlePointerDown(event.localPosition);
+                      },
+                      onPointerMove: (event) => provider.handlePointerMove(
+                        event.localPosition,
+                        event.localDelta,
+                      ),
+                      onPointerUp: (event) =>
+                          provider.handlePointerUp(event.localPosition),
+                      onPointerHover: (event) =>
+                          provider.updateCurrentPosition(event.localPosition),
+                      child: MouseRegion(
+                        cursor: buildCursor(provider),
+                        child: SizedBox(
+                          width: 10000,
+                          height: 10000,
+                          child: Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              ...buildNodes(provider),
+                              Positioned.fill(
+                                child: IgnorePointer(
+                                  child: CustomPaint(
+                                    painter: EdgePainter(provider: provider),
+                                  ),
+                                ),
+                              ),
+                              if (provider.currentPosition != null &&
+                                  (provider.activeTool == ToolType.node ||
+                                      activeTool == ToolType.container))
+                                (() {
+                                  return buildGhost(activeTool, provider);
+                                })(),
+                              if (provider.startPosition != null &&
+                                  provider.currentPosition != null)
+                                buildRectSelection(provider),
+                            ],
                           ),
                         ),
-                        if (provider.currentPosition != null &&
-                            (provider.activeTool == ToolType.node ||
-                                activeTool == ToolType.container))
-                          (() {
-                            return buildGhost(activeTool, provider);
-                          })(),
-                        if (provider.startPosition != null &&
-                            provider.currentPosition != null)
-                          buildRectSelection(provider),
-                      ],
+                      ),
                     ),
                   ),
                 ),
-              ),
+                buildZoomChip(provider),
+              ],
             ),
           ),
-          buildZoomChip(provider),
+          const PropertySidebar(),
         ],
       ),
     );

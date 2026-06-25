@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../provider/graph_provider.dart';
 import '../model/graph_models.dart';
@@ -23,18 +24,17 @@ class EdgePainter extends CustomPainter {
 
     final aggregatedEdges = provider.getAggregatedEdges();
 
-    // 1. Mappatura degli slot usando i nodi EFFETTIVI VISIBILI
-    final Map<String, List<String>> edgesBySource = {};
-    final Map<String, List<String>> edgesByTarget = {};
+    // 1. Mappatura unificata dei "porti" (slot) per ogni nodo
+    // Consideriamo sia le frecce in entrata che in uscita per evitare sovrapposizioni
+    final Map<String, List<String>> nodePorts = {};
 
     for (var edge in aggregatedEdges) {
       final effSource = _getEffectiveNode(edge.sourceId, provider);
       final effTarget = _getEffectiveNode(edge.targetId, provider);
 
-      // Mappiamo solo se entrambi esistono e non puntano allo stesso container
       if (effSource != null && effTarget != null && effSource.id != effTarget.id) {
-        edgesBySource.putIfAbsent(effSource.id, () => []).add(edge.id);
-        edgesByTarget.putIfAbsent(effTarget.id, () => []).add(edge.id);
+        nodePorts.putIfAbsent(effSource.id, () => []).add(edge.id);
+        nodePorts.putIfAbsent(effTarget.id, () => []).add(edge.id);
       }
     }
 
@@ -43,55 +43,44 @@ class EdgePainter extends CustomPainter {
       final source = _getEffectiveNode(edge.sourceId, provider);
       final target = _getEffectiveNode(edge.targetId, provider);
 
-      // Se manca un capo, o se è un arco interno a un container collassato, saltiamo
-      if (source == null || target == null) continue;
-      if (source.id == target.id) continue;
+      if (source == null || target == null || source.id == target.id) continue;
 
-      final sRect = Rect.fromLTWH(
-        source.position.dx,
-        source.position.dy,
-        source.size.width,
-        source.size.height,
-      );
-      final tRect = Rect.fromLTWH(
-        target.position.dx,
-        target.position.dy,
-        target.size.width,
-        target.size.height,
-      );
+      final sRect = Rect.fromLTWH(source.position.dx, source.position.dy, source.size.width, source.size.height);
+      final tRect = Rect.fromLTWH(target.position.dx, target.position.dy, target.size.width, target.size.height);
 
-      // Usiamo gli ID dei nodi effettivi per il Port Slotting
-      final sourceIndex = edgesBySource[source.id]!.indexOf(edge.id);
-      final sourceTotal = edgesBySource[source.id]!.length;
+      // Calcoliamo l'indice dello slot unico per questo edge su entrambi i nodi
+      final sourceIndex = nodePorts[source.id]!.indexOf(edge.id);
+      final sourceTotal = nodePorts[source.id]!.length;
 
-      final targetIndex = edgesByTarget[target.id]!.indexOf(edge.id);
-      final targetTotal = edgesByTarget[target.id]!.length;
+      final targetIndex = nodePorts[target.id]!.indexOf(edge.id);
+      final targetTotal = nodePorts[target.id]!.length;
 
-      // Capiamo la direzione generale per scegliere l'asse di sdoppiamento delle porte
+      // Capiamo la direzione per lo sdoppiamento
       final dx = tRect.center.dx - sRect.center.dx;
       final dy = tRect.center.dy - sRect.center.dy;
 
       Offset sOffset = Offset.zero;
       Offset tOffset = Offset.zero;
 
+      // Aumentiamo lo 'step' minimo a 20 per dare più respiro tra le frecce
+      const double minStep = 20.0;
+
       if (dx.abs() > dy.abs()) {
-        // Direzione Orizzontale -> Sdoppiamo in Verticale (Y)
         if (sourceTotal > 1) {
-          final step = ((source.size.height * 0.6) / (sourceTotal - 1)).clamp(8.0, 16.0);
+          final step = ((source.size.height * 0.7) / (sourceTotal - 1)).clamp(minStep, 25.0);
           sOffset = Offset(0, (sourceIndex - (sourceTotal - 1) / 2) * step);
         }
         if (targetTotal > 1) {
-          final step = ((target.size.height * 0.6) / (targetTotal - 1)).clamp(8.0, 16.0);
+          final step = ((target.size.height * 0.7) / (targetTotal - 1)).clamp(minStep, 25.0);
           tOffset = Offset(0, (targetIndex - (targetTotal - 1) / 2) * step);
         }
       } else {
-        // Direzione Verticale -> Sdoppiamo in Orizzontale (X)
         if (sourceTotal > 1) {
-          final step = ((source.size.width * 0.6) / (sourceTotal - 1)).clamp(8.0, 16.0);
+          final step = ((source.size.width * 0.7) / (sourceTotal - 1)).clamp(minStep, 25.0);
           sOffset = Offset((sourceIndex - (sourceTotal - 1) / 2) * step, 0);
         }
         if (targetTotal > 1) {
-          final step = ((target.size.width * 0.6) / (targetTotal - 1)).clamp(8.0, 16.0);
+          final step = ((target.size.width * 0.7) / (targetTotal - 1)).clamp(minStep, 25.0);
           tOffset = Offset((targetIndex - (targetTotal - 1) / 2) * step, 0);
         }
       }
@@ -101,12 +90,20 @@ class EdgePainter extends CustomPainter {
       final virtualTRect = tRect.shift(tOffset);
 
       final int globalIndex = provider.edges.indexOf(edge);
-      final double laneOffset = (globalIndex % 6) * 12.0;
+      // Aumentiamo il laneOffset a 20 per distanziare i percorsi ortogonali
+      final double laneOffset = (globalIndex % 6) * 20.0;
 
       // === OSTACOLI: Usiamo solo i nodi VISIBILI ===
       List<Rect> obstacles = [];
       for (var node in provider.visibleNodes) {
         if (node.id == source.id || node.id == target.id) continue;
+        
+        // Se il nodo è un container che contiene la sorgente o il target, 
+        // NON deve essere un ostacolo (la freccia deve poterci passare dentro)
+        if (node.isContainer && (provider.isAncestor(node.id, source.id) || provider.isAncestor(node.id, target.id))) {
+          continue;
+        }
+
         obstacles.add(Rect.fromLTWH(node.position.dx, node.position.dy, node.size.width, node.size.height));
       }
 
@@ -124,23 +121,41 @@ class EdgePainter extends CustomPainter {
       final isAggregated = edge.count > 1;
       final isSelected = provider.selectedEdgeIds.contains(edge.id);
 
-      Paint currentPaint;
+      // --- 1. DISEGNO ALONE DI SELEZIONE (Glow) ---
       if (isSelected) {
-        currentPaint = Paint()
-          ..color = Colors.blueAccent
-          ..strokeWidth = 3.5
-          ..style = PaintingStyle.stroke;
-      } else {
-        currentPaint = isAggregated ? aggregatedPaint : edgePaint;
+        final selectionGlowPaint = Paint()
+          ..color = Colors.blue.withOpacity(0.15)
+          ..strokeWidth = (isAggregated ? 3.0 : 2.0) + 10.0 // Più largo della freccia
+          ..style = PaintingStyle.stroke
+          ..strokeCap = StrokeCap.round;
+
+        // Disegniamo l'alone azzurro sotto
+        canvas.drawPath(path, selectionGlowPaint);
       }
 
-      canvas.drawPath(path, currentPaint);
+      // --- 2. DISEGNO FRECCIA REALE ---
+      // La freccia mantiene il suo colore originale anche se selezionata
+      final arrowColor = edge.color;
 
-      _drawArrowhead(
-        canvas,
-        path,
-        isSelected ? Colors.blueAccent : (isAggregated ? Colors.blueAccent : Colors.blueGrey),
-      );
+      final currentPaint = Paint()
+        ..color = arrowColor
+        ..strokeWidth = isAggregated ? 3.0 : 2.0
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round;
+
+      if (edge.borderStyle == BorderStyleType.dashed) {
+        canvas.drawPath(_createDashedPath(path, 6.0, 4.0), currentPaint);
+      } else {
+        canvas.drawPath(path, currentPaint);
+      }
+
+      // --- 3. DISEGNO PUNTE ---
+      if (edge.showTargetArrow) {
+        _drawArrowhead(canvas, path, arrowColor, atEnd: true);
+      }
+      if (edge.showSourceArrow) {
+        _drawArrowhead(canvas, path, arrowColor, atEnd: false);
+      }
     }
 
     // 3. Disegna l'Edge temporaneo (Ghost Edge durante il drag)
@@ -259,16 +274,21 @@ class EdgePainter extends CustomPainter {
     return newPath;
   }
 
-  /// Disegna la punta della freccia perfettamente orientata sul finale del tracciato
-  void _drawArrowhead(Canvas canvas, Path path, Color color) {
+  /// Disegna la punta della freccia perfettamente orientata sul finale o inizio del tracciato
+  void _drawArrowhead(Canvas canvas, Path path, Color color, {bool atEnd = true}) {
     final metrics = path.computeMetrics().toList();
     if (metrics.isEmpty) return;
 
-    final lastMetric = metrics.last;
-    final tangent = lastMetric.getTangentForOffset(lastMetric.length);
+    final metric = atEnd ? metrics.last : metrics.first;
+    final offset = atEnd ? metric.length : 0.0;
+    final tangent = metric.getTangentForOffset(offset);
     if (tangent == null) return;
 
-    final angle = atan2(tangent.vector.dy, tangent.vector.dx);
+    // Se siamo all'inizio, invertiamo il vettore per puntare verso il nodo
+    final dx = atEnd ? tangent.vector.dx : -tangent.vector.dx;
+    final dy = atEnd ? tangent.vector.dy : -tangent.vector.dy;
+
+    final angle = atan2(dy, dx);
     final arrowSize = 12.0;
 
     final arrowPath = Path()
@@ -289,6 +309,21 @@ class EdgePainter extends CustomPainter {
         ..color = color
         ..style = PaintingStyle.fill,
     );
+  }
+
+  Path _createDashedPath(Path source, double dashWidth, double dashSpace) {
+    final Path dashedPath = Path();
+    for (final PathMetric metric in source.computeMetrics()) {
+      double distance = 0.0;
+      while (distance < metric.length) {
+        dashedPath.addPath(
+          metric.extractPath(distance, distance + dashWidth),
+          Offset.zero,
+        );
+        distance += dashWidth + dashSpace;
+      }
+    }
+    return dashedPath;
   }
 
   @override
