@@ -23,10 +23,9 @@ class _GraphCanvasState extends State<GraphCanvas>
   final FocusNode _canvasFocusNode = FocusNode();
   AnimationController? _animationController;
 
-  Offset? _selectionStart;
-  Offset? _selectionCurrent;
-  bool _isDragging = false;
   Offset? localPosition;
+
+  int _zoom = 100;
 
   @override
   void initState() {
@@ -50,7 +49,15 @@ class _GraphCanvasState extends State<GraphCanvas>
   }
 
   void _handleTransformChanged() {
-    setState(() {});
+    setState(() {
+      final Matrix4 matrix = _transformController.value;
+      final double scale = sqrt(
+        matrix.entry(0, 0) * matrix.entry(0, 0) +
+            matrix.entry(1, 0) * matrix.entry(1, 0),
+      );
+      double percentage = scale * 100;
+      _zoom = percentage.toInt();
+    });
   }
 
   void _handleZoom(bool zoomIn) {
@@ -100,210 +107,129 @@ class _GraphCanvasState extends State<GraphCanvas>
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<GraphProvider>();
-    final activeTool = provider.activeTool;
+    var activeTool = provider.activeTool;
 
     return Scaffold(
       body: Stack(
         children: [
-          // 1. IL CANVAS (Il tuo codice originale dentro Focus)
-          buildMouseHandler(provider, activeTool),
-
-          // 2. I PULSANTI DI ZOOM
+          Focus(
+            focusNode: _canvasFocusNode,
+            autofocus: true,
+            onKeyEvent: (node, event) {
+              return handleShortcut(node, event, provider);
+            }, // I tuoi shortcut
+            child: InteractiveViewer(
+              transformationController: _transformController,
+              // Se il provider sta trascinando un nodo, disabilitiamo il pan della telecamera!
+              panEnabled: provider.canPanCanvas,
+              scaleEnabled: true,
+              minScale: 0.3,
+              maxScale: 3.0,
+              constrained: false,
+              boundaryMargin: const EdgeInsets.all(double.infinity),
+              child: Listener(
+                // IL CUORE DELL'INPUT CENTRALIZZATO
+                onPointerDown: (event) {
+                  if (!_canvasFocusNode.hasFocus) {
+                    _canvasFocusNode.requestFocus();
+                  }
+                  provider.handlePointerDown(event.localPosition);
+                },
+                onPointerMove: (event) => provider.handlePointerMove(
+                  event.localPosition,
+                  event.localDelta,
+                ),
+                onPointerUp: (event) =>
+                    provider.handlePointerUp(event.localPosition),
+                onPointerHover: (event) =>
+                    provider.updateCurrentPosition(event.localPosition),
+                child: MouseRegion(
+                  cursor: buildCursor(provider),
+                  child: SizedBox(
+                    width: 10000,
+                    height: 10000,
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        ...buildNodes(provider),
+                        Positioned.fill(
+                          child: IgnorePointer(
+                            child: CustomPaint(
+                              painter: EdgePainter(provider: provider),
+                            ),
+                          ),
+                        ),
+                        if (provider.currentPosition != null &&
+                            (provider.activeTool == ToolType.node ||
+                                activeTool == ToolType.container))
+                          (() {
+                            return buildGhost(activeTool, provider);
+                          })(),
+                        if (provider.startPosition != null &&
+                            provider.currentPosition != null)
+                          buildRectSelection(provider),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
           buildZoomChip(provider),
         ],
       ),
     );
   }
 
-  Focus buildMouseHandler(GraphProvider provider, ToolType activeTool) {
-    final bool canUseGestures = provider.activeTool != ToolType.pan;
-
-    var gestureDetector = GestureDetector(
-      // FONDAMENTALE: cattura i click e i drag anche sullo spazio "vuoto" e trasparente del canvas
-      // impedendo all'InteractiveViewer sottostante di reagire al drag del mouse.
-      behavior: HitTestBehavior.opaque,
-
-      onPanStart: (details) {
-        if (activeTool == ToolType.edge) return;
-        if (activeTool == ToolType.pointer) {
-          _canvasFocusNode.requestFocus();
-          setState(() {
-            _selectionStart = details.localPosition;
-            _selectionCurrent = _selectionStart;
-          });
-        }
-      },
-      onPanUpdate: (details) {
-        if (activeTool == ToolType.edge) return;
-        if (activeTool == ToolType.pointer && _selectionStart != null) {
-          setState(() {
-            _selectionCurrent = details.localPosition;
-          });
-          final rect = Rect.fromPoints(
-            _selectionStart!,
-            _selectionCurrent!,
-          );
-          provider.updateSelectionFromRect(rect);
-        }
-      },
-      onPanEnd: (details) {
-        if (activeTool == ToolType.pointer) {
-          setState(() {
-            _selectionStart = null;
-            _selectionCurrent = null;
-          });
-        }
-      },
-      onTapUp: (details) {
-        _canvasFocusNode.requestFocus();
-
-        if (activeTool == ToolType.pointer) {
-          provider.trySelectEdgeAt(details.localPosition);
-        }
-        if (activeTool == ToolType.node || activeTool == ToolType.container) {
-          final isContainer = activeTool == ToolType.container;
-          final nodeSize = isContainer
-              ? GraphNode.defaultContainerSize
-              : GraphNode.defaultNodeSize;
-
-          final centeredPosition = Offset(
-            details.localPosition.dx - nodeSize.width / 2,
-            details.localPosition.dy - nodeSize.height / 2,
-          );
-
-          var node2Add = GraphNode(
-            id: DateTime.now().millisecondsSinceEpoch.toString(),
-            name: isContainer ? 'New Container' : 'New Node',
-            position: centeredPosition,
-            size: nodeSize,
-            oldSize: isContainer ? nodeSize : null,
-            isContainer: isContainer,
-          );
-
-          provider.addNode(node2Add);
-          if (isContainer) {
-            provider.autoAdoptNodes(node2Add);
-          }
-          provider.setTool(ToolType.pointer);
-          provider.setSelection(node2Add.id);
-        }
-      },
-      child: buildCanvas(provider, activeTool),
-    );
-
-    var mouseRegion = MouseRegion(
-      cursor: getCursor(provider),
-      onExit: (_) {
-        provider.updatePreviewPosition(null);
-      },
-      // Se il tool è PAN, bypassiamo il GestureDetector: i gesti del mouse
-      // arriveranno dritti all'InteractiveViewer permettendogli di muovere il canvas.
-      child: canUseGestures ? gestureDetector : buildCanvas(provider, activeTool),
-    );
-
-    var listener = Listener(
-      onPointerMove: (event) {
-        if (provider.isCreatingEdge) {
-          provider.updateDraftEdge(event.localPosition);
-        }
-      },
-      onPointerDown: (event) {
-        setState(() {
-          _isDragging = true;
-        });
-      },
-      onPointerUp: (event) {
-        if (provider.isCreatingEdge) {
-          provider.finishEdge(event.localPosition);
-        }
-        setState(() {
-          _isDragging = false;
-        });
-      },
-      onPointerHover: (event) {
-        setState(() {
-          localPosition = event.localPosition;
-        });
-        if (activeTool == ToolType.node || activeTool == ToolType.container) {
-          provider.updatePreviewPosition(event.localPosition);
-        } else if (provider.previewPosition != null) {
-          provider.updatePreviewPosition(null);
-        }
-      },
-      child: mouseRegion,
-    );
-
-    return Focus(
-      focusNode: _canvasFocusNode,
-      autofocus: true,
-      onKeyEvent: (node, event) {
-        if (event is KeyUpEvent) {
-          if (event.logicalKey == LogicalKeyboardKey.space) {
-            provider.setTool(ToolType.pointer);
-          }
-        }
-        if (event is KeyDownEvent) {
-          if (event.logicalKey == LogicalKeyboardKey.space) {
-            provider.setTool(ToolType.pan);
-          }
-          if (event.logicalKey == LogicalKeyboardKey.escape) {
-            provider.setTool(ToolType.pointer);
-          }
-          if ((event.logicalKey == LogicalKeyboardKey.backspace ||
-              event.logicalKey == LogicalKeyboardKey.delete) &&
-              !provider.isTextEdit) {
-            provider.deleteSelected();
-            return KeyEventResult.handled;
-          }
-          if (event.character == '1') {
-            provider.setTool(ToolType.pointer);
-          }
-          if (event.character == '2') {
-            provider.setTool(ToolType.pan);
-          }
-          if (event.character == '3') {
-            provider.setTool(ToolType.node);
-            provider.updatePreviewPosition(localPosition);
-          }
-          if (event.character == '4') {
-            provider.setTool(ToolType.container);
-            provider.updatePreviewPosition(localPosition);
-          }
-          if (event.character == '5') {
-            provider.setTool(ToolType.edge);
-            provider.clearSelection();
-          }
-        }
-        return KeyEventResult.ignored;
-      },
-      child: InteractiveViewer(
-        transformationController: _transformController,
-        panEnabled: true,
-        scaleEnabled: true,
-        minScale: 0.3,
-        maxScale: 3.0,
-        constrained: false,
-        boundaryMargin: const EdgeInsets.all(double.infinity),
-        onInteractionEnd: (scaleData) {
-          provider.setZoomScale(
-            _transformController.value.getMaxScaleOnAxis(),
-          );
-        },
-        child: listener,
-      ),
-    );
-  }
-  SystemMouseCursor getCursor(GraphProvider provider) {
+  SystemMouseCursor buildCursor(GraphProvider provider) {
+    if (provider.interactionMode == InteractionMode.panning) {
+      return SystemMouseCursors.grabbing;
+    }
     if (provider.activeTool == ToolType.edge) {
       return SystemMouseCursors.precise;
     }
-    if (provider.activeTool == ToolType.pan) {
-      return _isDragging
-          ? SystemMouseCursors.grabbing
-          : SystemMouseCursors.grab;
-    }
+    return provider.activeTool == ToolType.pan
+        ? SystemMouseCursors.grab
+        : SystemMouseCursors.basic;
+  }
 
-    return SystemMouseCursors.basic;
+  KeyEventResult handleShortcut(node, event, GraphProvider provider) {
+    if (event is KeyUpEvent) {
+      if (event.logicalKey == LogicalKeyboardKey.space) {
+        provider.setTool(ToolType.pointer);
+      }
+    }
+    if (event is KeyDownEvent) {
+      if (event.logicalKey == LogicalKeyboardKey.space) {
+        provider.setTool(ToolType.pan);
+      }
+      if (event.logicalKey == LogicalKeyboardKey.escape) {
+        provider.setTool(ToolType.pointer);
+      }
+      if ((event.logicalKey == LogicalKeyboardKey.backspace ||
+              event.logicalKey == LogicalKeyboardKey.delete) &&
+          !provider.isTextEdit) {
+        provider.deleteSelected();
+        return KeyEventResult.handled;
+      }
+      if (event.character == '1') {
+        provider.setTool(ToolType.pointer);
+      }
+      if (event.character == '2') {
+        provider.setTool(ToolType.pan);
+      }
+      if (event.character == '3') {
+        provider.setTool(ToolType.node);
+      }
+      if (event.character == '4') {
+        provider.setTool(ToolType.container);
+      }
+      if (event.character == '5') {
+        provider.setTool(ToolType.edge);
+        provider.clearSelection();
+      }
+    }
+    return KeyEventResult.ignored;
   }
 
   Positioned buildZoomChip(GraphProvider provider) {
@@ -331,7 +257,7 @@ class _GraphCanvasState extends State<GraphCanvas>
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 8.0),
                   child: Text(
-                    "${provider.zoomPercentage}%",
+                    "${_zoom}%",
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                 ),
@@ -366,41 +292,9 @@ class _GraphCanvasState extends State<GraphCanvas>
     );
   }
 
-  SizedBox buildCanvas(GraphProvider provider, ToolType activeTool) {
-    return SizedBox(
-      width: 10000,
-      height: 10000,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          // 1. PRIMA disegniamo i nodi (staranno sotto)
-          ...buildNodes(provider),
-
-          // 2. DOPO disegniamo le frecce (staranno SOPRA ai nodi)
-          Positioned.fill(
-            // Importante: IgnorePointer assicura che le frecce visivamente
-            // in primo piano non blocchino i tap sui nodi sottostanti
-            child: IgnorePointer(
-              child: CustomPaint(painter: EdgePainter(provider: provider)),
-            ),
-          ),
-
-          // 3. Ghost preview e Selezione rettangolare (primissimo piano)
-          if (provider.previewPosition != null &&
-              (activeTool == ToolType.node || activeTool == ToolType.container))
-            (() {
-              return buildGhost(activeTool, provider);
-            })(),
-          if (_selectionStart != null && _selectionCurrent != null)
-            buildRectSelection(),
-        ],
-      ),
-    );
-  }
-
   List<NodeWidget> buildNodes(GraphProvider provider) {
     var nodesToRender = List<GraphNode>.from(provider.visibleNodes);
-/*
+    /*
     int getDepth(GraphNode node) {
       int depth = 0;
       String? currentParentId = node.parentId;
@@ -434,33 +328,41 @@ class _GraphCanvasState extends State<GraphCanvas>
     });
 */
     return nodesToRender.map((node) {
-      return NodeWidget(key: ValueKey(node.id), node: node);
+      return NodeWidget(
+        key: ValueKey(node.id),
+        node: node,
+        onTapOut: () {
+          _canvasFocusNode.requestFocus();
+        },
+      );
     }).toList();
   }
 
   NodeWidget buildGhost(ToolType activeTool, GraphProvider provider) {
     final isContainer = activeTool == ToolType.container;
-    final previewSize = isContainer
+    Size previewSize = isContainer
         ? GraphNode.defaultContainerSize
         : GraphNode.defaultNodeSize;
+
     return NodeWidget(
       isGhost: true,
+      onTapOut: () {},
       node: GraphNode(
         id: 'temp_ghost',
         name: '',
         size: previewSize,
         isContainer: isContainer,
         position: Offset(
-          provider.previewPosition!.dx - previewSize.width / 2,
-          provider.previewPosition!.dy - previewSize.height / 2,
+          provider.currentPosition!.dx - previewSize.width / 2,
+          provider.currentPosition!.dy - previewSize.height / 2,
         ),
       ),
     );
   }
 
-  Positioned buildRectSelection() {
+  Positioned buildRectSelection(GraphProvider provider) {
     return Positioned.fromRect(
-      rect: Rect.fromPoints(_selectionStart!, _selectionCurrent!),
+      rect: Rect.fromPoints(provider.startPosition!, provider.currentPosition!),
       child: Container(
         decoration: BoxDecoration(
           color: Colors.blue.withOpacity(0.1),

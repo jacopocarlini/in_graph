@@ -2,10 +2,23 @@ import 'package:flutter/material.dart';
 import '../model/graph_models.dart';
 import '../util/edge_routing_service.dart';
 
+enum InteractionMode {
+  idle,
+  tool,
+  panning,
+  clicking,
+  draggingNode,
+  resizingNode,
+  rectSelecting,
+  creatingEdge,
+}
+
 class GraphProvider extends ChangeNotifier {
   // ==========================================
   // VARIABILI DI STATO
   // ==========================================
+  InteractionMode _interactionMode = InteractionMode.idle;
+
   final List<GraphNode> _nodes = [];
   final List<GraphEdge> _edges = [];
 
@@ -13,16 +26,29 @@ class GraphProvider extends ChangeNotifier {
   List<String> _selectionNodes = [];
   List<String> _selectedEdges = [];
 
-  Offset? _previewPosition;
+  Offset? _startPosition;
+  Offset? _currentPosition;
   double? _zoomScale;
   bool _isTextEdit = false;
 
   String? _draftEdgeSourceId;
   Offset? _draftEdgeTarget;
+  Alignment? _activeResizeHandle;
+  String? _interactingNodeId;
+
+  // Controlla se la telecamera può muoversi
+  bool get canPanCanvas =>
+      _activeTool == ToolType.pan || _interactionMode == InteractionMode.idle;
+
+
+  InteractionMode get interactionMode => _interactionMode;
+
 
   // ==========================================
   // GETTER GENERALI
   // ==========================================
+  Offset? get currentPosition => _currentPosition;
+
   List<GraphNode> get nodes => _nodes;
 
   List<GraphEdge> get edges => _edges;
@@ -33,17 +59,11 @@ class GraphProvider extends ChangeNotifier {
 
   List<String> get selectedEdgeIds => _selectedEdges;
 
-  Offset? get previewPosition => _previewPosition;
+  Offset? get startPosition => _startPosition;
 
   bool get isTextEdit => _isTextEdit;
 
   double get zoomScale => _zoomScale ?? 1.0;
-
-  int get zoomPercentage {
-    double scale = (_zoomScale ?? 1);
-    double percentage = scale * 100;
-    return percentage.toInt();
-  }
 
   TempEdge? get tempEdge {
     if (_draftEdgeSourceId != null && _draftEdgeTarget != null) {
@@ -68,7 +88,7 @@ class GraphProvider extends ChangeNotifier {
     _activeTool = tool;
     _draftEdgeSourceId = null;
     _draftEdgeTarget = null;
-    _previewPosition = null;
+    clearSelection();
     notifyListeners();
   }
 
@@ -77,16 +97,18 @@ class GraphProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void updatePreviewPosition(Offset? pos) {
-    _previewPosition = pos;
+  void updateCurrentPosition(Offset position){
+    _currentPosition = position;
     notifyListeners();
   }
+
 
   // ==========================================
   // GESTIONE SELEZIONE E RIMOZIONE
   // ==========================================
   void setSelection(String id) {
     _selectionNodes = [id];
+    _isTextEdit = false;
     _selectedEdges.clear();
 
     // Porta in primo piano (Bring to Front)
@@ -156,6 +178,10 @@ class GraphProvider extends ChangeNotifier {
         target.size.width,
         target.size.height,
       );
+
+      if (sRect.contains(localPosition) || tRect.contains(localPosition)) {
+        continue; // Passa alla prossima freccia, lasciando il click libero per il nodo
+      }
 
       final sourceIndex = edgesBySource[edge.sourceId]!.indexOf(edge.id);
       final sourceTotal = edgesBySource[edge.sourceId]!.length;
@@ -256,13 +282,8 @@ class GraphProvider extends ChangeNotifier {
 
     // Seleziona nodi
     for (var node in _nodes) {
-      final isCollapsedContainer = node.isContainer && node.isCollapsed;
-      final width = isCollapsedContainer
-          ? GraphNode.defaultNodeSize.width
-          : node.size.width;
-      final height = isCollapsedContainer
-          ? GraphNode.defaultNodeSize.height
-          : (node.isContainer ? node.size.height : node.size.width);
+      final width =  node.size.width;
+      final height = node.size.height;
 
       final nodeRect = Rect.fromLTWH(
         node.position.dx,
@@ -489,10 +510,20 @@ class GraphProvider extends ChangeNotifier {
       findDescendants(baseIdsToMove.first);
     }
 
+    // Lista di supporto per spostare i nodi in movimento in fondo all'array
+    List<GraphNode> movedNodes = [];
+
     for (var node in _nodes) {
       if (allIdsToMove.contains(node.id)) {
         node.position += delta;
+        movedNodes.add(node);
       }
+    }
+
+    // Portali in fondo alla lista per garantire il primo piano visivo DURANTE il drag
+    if (movedNodes.isNotEmpty) {
+      _nodes.removeWhere((n) => allIdsToMove.contains(n.id));
+      _nodes.addAll(movedNodes);
     }
 
     notifyListeners();
@@ -511,86 +542,147 @@ class GraphProvider extends ChangeNotifier {
   // GESTIONE CONTAINER (DRAG, DROP, COLLAPSE)
   // ==========================================
   void handleNodeDrop(String nodeId) {
-    final nodeIndex = _nodes.indexWhere((n) => n.id == nodeId);
-    if (nodeIndex == -1) return;
-
-    final node = _nodes[nodeIndex];
-    final nodeCenter = _getEffectiveRect(node).center;
-
-    final validContainers = _nodes
-        .where(
-          (c) =>
-              c.isContainer &&
-              c.id != nodeId &&
-              _getEffectiveRect(c).contains(nodeCenter),
-        )
-        .toList();
-
-    if (validContainers.isNotEmpty) {
-      GraphNode? targetContainer;
-      // Cerchiamo il primo container valido che NON crei un loop circolare
-      for (var container in validContainers.reversed) {
-        if (!_wouldCreateCycle(node.id, container.id)) {
-          targetContainer = container;
-          break;
+    // 1. Portiamo la famiglia trascinata in primo piano visivo (Invariato)
+    final Set<String> familyIds = {nodeId};
+    void findDescendants(String parentId) {
+      for (var n in _nodes) {
+        if (n.parentId == parentId && !familyIds.contains(n.id)) {
+          familyIds.add(n.id);
+          findDescendants(n.id);
         }
       }
-
-      if (targetContainer != null) {
-        _nodes[nodeIndex] = node.copyWith(parentId: targetContainer.id);
-      } else {
-        _nodes[nodeIndex] = node.copyWith(clearParent: true);
-      }
-    } else {
-      _nodes[nodeIndex] = node.copyWith(clearParent: true);
     }
+    findDescendants(nodeId);
+
+    List<GraphNode> familyNodes = [];
+    for (var n in _nodes) {
+      if (familyIds.contains(n.id)) {
+        familyNodes.add(n);
+      }
+    }
+
+    if (familyNodes.isNotEmpty) {
+      _nodes.removeWhere((n) => familyIds.contains(n.id));
+      _nodes.addAll(familyNodes);
+    }
+
+    // ==========================================
+    // 2. APPLICHIAMO LA REGOLA GEOMETRICA
+    // ==========================================
+    _recalculateHierarchyBasedOnGeometry();
+
     notifyListeners();
   }
 
   void autoAdoptNodes(GraphNode container) {
-    final containerRect = _getEffectiveRect(container);
-
-    for (var i = 0; i < _nodes.length; i++) {
-      final child = _nodes[i];
-      if (child.id == container.id) continue;
-
-      final childCenter = _getEffectiveRect(child).center;
-
-      if (containerRect.contains(childCenter)) {
-        if (!_wouldCreateCycle(child.id, container.id)) {
-          _nodes[i] = child.copyWith(parentId: container.id);
-        }
-      }
-    }
+    // Appena viene creato un nuovo elemento, diamo una passata alla gerarchia
+    // per vedere se ingloba qualcosa di pre-esistente
+    _recalculateHierarchyBasedOnGeometry();
     notifyListeners();
   }
 
+  // ==========================================
+  // HELPER: GARANTISCE CHE I FIGLI SIANO SEMPRE SOPRA I PADRI
+  // ==========================================
+  void _enforceParentChildZOrder() {
+    bool requiresSorting = true;
+
+    // Continua a ciclare finché non ci sono più conflitti di Z-Index
+    while (requiresSorting) {
+      requiresSorting = false;
+
+      for (int i = 0; i < _nodes.length; i++) {
+        final node = _nodes[i];
+
+        // Se il nodo ha un padre, verifichiamo dove si trova il padre
+        if (node.parentId != null) {
+          final parentIndex = _nodes.indexWhere((n) => n.id == node.parentId);
+
+          // Se l'indice del padre è MAGGIORE di quello del figlio,
+          // significa che il padre verrà disegnato DOPO e coprirà il figlio.
+          if (parentIndex != -1 && parentIndex > i) {
+
+            // 1. Rimuoviamo il figlio dalla sua posizione errata (sotto)
+            final childToMove = _nodes.removeAt(i);
+
+            // 2. Lo reinseriamo esattamente un livello SOPRA al padre.
+            // (Nota: poiché abbiamo rimosso un elemento prima del padre,
+            // il nuovo indice del padre è sceso di 1. Inserendo a `parentIndex`
+            // lo mettiamo automaticamente subito DOPO il padre).
+            _nodes.insert(parentIndex, childToMove);
+
+            requiresSorting = true;
+            break; // Rompiamo il ciclo `for` per ricominciare con gli indici aggiornati
+          }
+        }
+      }
+    }
+  }
+
   void updateContainerChildren(String containerId) {
+    // La logica geometrica ha stabilito che: "I figli devono rimanere invariati durante il resize"
+    // Nessun nodo adotta o abbandona figli durante un resize.
+
+    // Ci assicuriamo solo che il ridimensionamento non abbia rotto lo Z-Index
+    _recalculateHierarchyBasedOnGeometry();
+    notifyListeners();
+  }
+
+  // ==========================================
+  // HELPER: Z-INDEX REAL-TIME PER IL RESIZE
+  // ==========================================
+  void _bringOverlappingNodesToFront(String containerId) {
     final containerIndex = _nodes.indexWhere((n) => n.id == containerId);
     if (containerIndex == -1) return;
 
     final container = _nodes[containerIndex];
     final containerRect = _getEffectiveRect(container);
 
-    for (var i = 0; i < _nodes.length; i++) {
-      final child = _nodes[i];
+    Set<String> overlappingIds = {};
 
-      if (child.id == container.id) continue;
+    // 1. Trova tutti i nodi toccati dal container in espansione
+    for (var n in _nodes) {
+      // Ignora il container stesso, i suoi figli diretti (già gestiti) e i suoi antenati
+      if (n.id == containerId || n.parentId == containerId || _isAncestor(n.id, containerId)) {
+        continue;
+      }
 
-      final childCenter = _getEffectiveRect(child).center;
+      // Se i rettangoli si intersecano (overlaps), segnala il nodo per il primo piano
+      if (containerRect.overlaps(_getEffectiveRect(n))) {
+        overlappingIds.add(n.id);
+      }
+    }
 
-      if (containerRect.contains(childCenter)) {
-        if (child.parentId != container.id &&
-            !_wouldCreateCycle(child.id, container.id)) {
-          _nodes[i] = child.copyWith(parentId: container.id);
-        }
-      } else {
-        if (child.parentId == container.id) {
-          _nodes[i] = child.copyWith(clearParent: true);
+    if (overlappingIds.isEmpty) return;
+
+    // 2. Recupera intere "famiglie" per non separare container inglobati dai loro stessi figli
+    Set<String> familyIds = Set.from(overlappingIds);
+    void findDescendants(String parentId) {
+      for (var n in _nodes) {
+        if (n.parentId == parentId && !familyIds.contains(n.id)) {
+          familyIds.add(n.id);
+          findDescendants(n.id);
         }
       }
     }
-    notifyListeners();
+
+    for (var id in overlappingIds) {
+      findDescendants(id);
+    }
+
+    // 3. Estrai i nodi mantenendo il loro ordine visivo preesistente tra di loro
+    List<GraphNode> nodesToFront = [];
+    for (var n in _nodes) {
+      if (familyIds.contains(n.id)) {
+        nodesToFront.add(n);
+      }
+    }
+
+    // 4. Rimuovili e accodali alla lista (posizione in fondo = primo piano)
+    if (nodesToFront.isNotEmpty) {
+      _nodes.removeWhere((n) => familyIds.contains(n.id));
+      _nodes.addAll(nodesToFront);
+    }
   }
 
   void toggleCollapse(String nodeId) {
@@ -605,6 +697,7 @@ class GraphProvider extends ChangeNotifier {
         oldSize: _nodes[index].size,
         isCollapsed: !_nodes[index].isCollapsed,
       );
+      // Niente ricalcolo gerarchico, cambiamo solo l'estetica!
       notifyListeners();
     }
   }
@@ -726,26 +819,6 @@ class GraphProvider extends ChangeNotifier {
   }
 
   // ==========================================
-  // HELPER PER PREVENZIONE CICLI
-  // ==========================================
-  bool _wouldCreateCycle(String childId, String newParentId) {
-    String? current = newParentId;
-    Set<String> visited = {childId};
-
-    while (current != null) {
-      if (visited.contains(current)) {
-        return true; // Rilevato un loop!
-      }
-      visited.add(current);
-
-      final parentIndex = _nodes.indexWhere((n) => n.id == current);
-      if (parentIndex == -1) break;
-      current = _nodes[parentIndex].parentId;
-    }
-    return false;
-  }
-
-  // ==========================================
   // HELPER GERARCHIA E OSTACOLI
   // ==========================================
   bool _isAncestor(String ancestorId, String childId) {
@@ -767,4 +840,383 @@ class GraphProvider extends ChangeNotifier {
     }
     return false;
   }
-}
+
+  // ==========================================
+  // HIT TESTING (Chi ho colpito?)
+  // ==========================================
+  GraphNode? _hitTestNodes(Offset position) {
+    // Cicliamo al contrario: i nodi disegnati sopra (ultimi nella lista) hanno la precedenza
+    for (var node in visibleNodes.reversed) {
+      final rect = _getEffectiveRect(node);
+      if (rect.contains(position)) return node;
+    }
+    return null;
+  }
+
+// --- Dentro GraphProvider ---
+  Alignment? _hitTestResizeHandles(Offset position) {
+    if (_selectionNodes.isEmpty) return null;
+
+    final node = _nodes.cast<GraphNode?>().firstWhere(
+          (n) => n?.id == _selectionNodes.first,
+      orElse: () => null,
+    );
+
+    if (node == null || !node.isContainer || node.isCollapsed) return null;
+
+    final rect = _getEffectiveRect(node);
+
+    // Deve combaciare con lo spessore definito nella UI (NodeWidget)
+    const double thickness = 20.0;
+    const double halfThickness = thickness / 2;
+
+    // ==========================================
+    // LOGICA DI HIT-TEST CONTINUA
+    // Verifichiamo se il punto è dentro i rettangoli perimetrali
+    // ==========================================
+
+    // 1. Controllo PRIORITARIO degli Angoli
+    // (Sono quadrati thickness x thickness posizionati a cavallo degli angoli reali)
+
+    // Top-Left
+    if (Rect.fromLTWH(rect.left - halfThickness, rect.top - halfThickness, thickness, thickness).contains(position)) {
+      return Alignment.topLeft;
+    }
+    // Top-Right
+    if (Rect.fromLTWH(rect.right - halfThickness, rect.top - halfThickness, thickness, thickness).contains(position)) {
+      return Alignment.topRight;
+    }
+    // Bottom-Left
+    if (Rect.fromLTWH(rect.left - halfThickness, rect.bottom - halfThickness, thickness, thickness).contains(position)) {
+      return Alignment.bottomLeft;
+    }
+    // Bottom-Right
+    if (Rect.fromLTWH(rect.right - halfThickness, rect.bottom - halfThickness, thickness, thickness).contains(position)) {
+      return Alignment.bottomRight;
+    }
+
+    // 2. Controllo dei Bordi (le barre lunghe esclusi gli angoli)
+
+    // Bordo Nord (Top)
+    if (Rect.fromLTWH(rect.left + halfThickness, rect.top - halfThickness, rect.width - thickness, thickness).contains(position)) {
+      return Alignment.topCenter;
+    }
+    // Bordo Sud (Bottom)
+    if (Rect.fromLTWH(rect.left + halfThickness, rect.bottom - halfThickness, rect.width - thickness, thickness).contains(position)) {
+      return Alignment.bottomCenter;
+    }
+    // Bordo Ovest (Left)
+    if (Rect.fromLTWH(rect.left - halfThickness, rect.top + halfThickness, thickness, rect.height - thickness).contains(position)) {
+      return Alignment.centerLeft;
+    }
+    // Bordo Est (Right)
+    if (Rect.fromLTWH(rect.right - halfThickness, rect.top + halfThickness, thickness, rect.height - thickness).contains(position)) {
+      return Alignment.centerRight;
+    }
+
+    return null;
+  }
+
+  // ==========================================
+  // GESTIONE EVENTI RAW POINTER (Invocati dal Canvas)
+  // ==========================================
+
+// ==========================================
+  // GESTIONE LAYER (Z-INDEX)
+  // ==========================================
+  void reorderNodes(int oldVisualIndex, int newVisualIndex) {
+    // 1. Compensazione standard di Flutter per la UI quando si trascina verso il basso
+    if (oldVisualIndex < newVisualIndex) {
+      newVisualIndex -= 1;
+    }
+
+    final int N = _nodes.length;
+
+    // 2. Traduciamo gli indici visuali (dove 0 è il primo piano)
+    // negli indici reali (dove N-1 è il primo piano)
+    int actualOldIndex = N - 1 - oldVisualIndex;
+    int actualNewIndex = N - 1 - newVisualIndex;
+
+    // 3. Eseguiamo lo spostamento nella lista reale
+    final GraphNode node = _nodes.removeAt(actualOldIndex);
+    _nodes.insert(actualNewIndex, node);
+
+    notifyListeners();
+  }
+
+  void handlePointerDown(Offset position) {
+    _isTextEdit = false;
+    if (_activeTool == ToolType.pan) {
+      _interactionMode = InteractionMode.panning;
+      notifyListeners();
+      return; // Lasciamo fare all'InteractiveViewer
+    } else{
+      _interactionMode = InteractionMode.clicking;
+      notifyListeners();
+    }
+
+    // 1. Tool Aggiunta Nodi/Container
+    if (_activeTool == ToolType.node || _activeTool == ToolType.container) {
+      _createNewNodeAt(position); // Il tuo codice esistente per aggiungere nodi
+      return;
+    }
+
+    // 2. Tool Creazione Archi
+    if (_activeTool == ToolType.edge) {
+      final node = _hitTestNodes(position);
+      if (node != null) {
+        startEdge(node.id);
+        _interactionMode = InteractionMode.creatingEdge;
+      }
+      return;
+    }
+
+    // 3. Tool Puntatore (Selezione, Drag, Resize)
+    if (_activeTool == ToolType.pointer) {
+      // A. Ho colpito una maniglia di ridimensionamento?
+      final handle = _hitTestResizeHandles(position);
+      if (handle != null) {
+        _interactionMode = InteractionMode.resizingNode;
+        _activeResizeHandle = handle;
+        _interactingNodeId = _selectionNodes.first;
+        return;
+      }
+
+      // C. Ho colpito un Arco? (Il tuo metodo modificato per ritornare bool)
+      if (trySelectEdgeAt(position)) {
+        return; // Freccia selezionata, non facciamo altro
+      }
+
+      // B. Ho colpito un Nodo?
+      final node = _hitTestNodes(position);
+      if (node != null) {
+        _interactionMode = InteractionMode.draggingNode;
+        _interactingNodeId = node.id;
+        setSelection(node.id); // Aggiorna selezione
+        return;
+      }
+
+      // D. Ho cliccato nel vuoto: iniziamo la selezione rettangolare
+      clearSelection();
+      _interactionMode = InteractionMode.rectSelecting;
+      // Imposta le coordinate iniziali del tuo rettangolo qui
+      _startPosition = position;
+      _currentPosition = null;
+    }
+  }
+
+  void handlePointerMove(Offset position, Offset delta) {
+    switch (_interactionMode) {
+      case InteractionMode.draggingNode:
+        if (_interactingNodeId != null) moveNode(_interactingNodeId!, delta);
+        break;
+      case InteractionMode.resizingNode:
+        _applyResize(delta);
+        break;
+      case InteractionMode.creatingEdge:
+        updateDraftEdge(position);
+        break;
+      case InteractionMode.rectSelecting:
+        // Aggiorna le coordinate del rettangolo
+        _currentPosition = position;
+        Rect rect = Rect.fromPoints(_startPosition!, _currentPosition!);
+        updateSelectionFromRect(rect);
+        break;
+      default:
+        break;
+    }
+    notifyListeners();
+  }
+
+  void handlePointerUp(Offset position) {
+    if (_interactionMode == InteractionMode.creatingEdge) {
+      finishEdge(position);
+    } else if (_interactionMode == InteractionMode.draggingNode &&
+        _interactingNodeId != null) {
+      handleNodeDrop(_interactingNodeId!);
+    } else if (_interactionMode == InteractionMode.resizingNode &&
+        _interactingNodeId != null) {
+      updateContainerChildren(_interactingNodeId!);
+    }
+
+    // Resetta lo stato
+    _interactionMode = InteractionMode.idle;
+    _activeResizeHandle = null;
+    _interactingNodeId = null;
+    _startPosition = null;
+    notifyListeners();
+  }
+
+  void _applyResize(Offset rawDelta) {
+    if (_interactingNodeId == null || _activeResizeHandle == null) return;
+
+    final index = _nodes.indexWhere((n) => n.id == _interactingNodeId);
+    if (index == -1) return;
+
+    final node = _nodes[index];
+
+    // Convertiamo il delta tenendo conto dello zoom
+    final deltaX = rawDelta.dx / zoomScale;
+    final deltaY = rawDelta.dy / zoomScale;
+
+    double newWidth = node.size.width;
+    double newHeight = node.size.height;
+    double newX = node.position.dx;
+    double newY = node.position.dy;
+
+    // Dimensioni minime di sicurezza
+    const double minWidth = 150.0;
+    const double minHeight = 100.0;
+
+    // 1. Asse X (Larghezza e Posizione Orizzontale)
+    if (_activeResizeHandle == Alignment.centerRight ||
+        _activeResizeHandle == Alignment.topRight ||
+        _activeResizeHandle == Alignment.bottomRight) {
+      newWidth += deltaX;
+    } else if (_activeResizeHandle == Alignment.centerLeft ||
+        _activeResizeHandle == Alignment.topLeft ||
+        _activeResizeHandle == Alignment.bottomLeft) {
+      final proposedWidth = newWidth - deltaX;
+      if (proposedWidth >= minWidth) {
+        newWidth = proposedWidth;
+        newX += deltaX; // Se riduco da sinistra, il punto di origine avanza
+      }
+    }
+
+    // 2. Asse Y (Altezza e Posizione Verticale)
+    if (_activeResizeHandle == Alignment.bottomCenter ||
+        _activeResizeHandle == Alignment.bottomLeft ||
+        _activeResizeHandle == Alignment.bottomRight) {
+      newHeight += deltaY;
+    } else if (_activeResizeHandle == Alignment.topCenter ||
+        _activeResizeHandle == Alignment.topLeft ||
+        _activeResizeHandle == Alignment.topRight) {
+      final proposedHeight = newHeight - deltaY;
+      if (proposedHeight >= minHeight) {
+        newHeight = proposedHeight;
+        newY += deltaY; // Se riduco dall'alto, il punto di origine scende
+      }
+    }
+
+    // 3. Forziamo il blocco finale delle dimensioni minime
+    newWidth = newWidth < minWidth ? minWidth : newWidth;
+    newHeight = newHeight < minHeight ? minHeight : newHeight;
+
+    // 4. Aggiorniamo il nodo
+    _nodes[index] = node.copyWith(
+      size: Size(newWidth, newHeight),
+      position: Offset(newX, newY),
+    );
+
+    // ========================================================
+    // 5. NOVITÀ: Portiamo in primo piano gli elementi inglobati
+    // ========================================================
+    _bringOverlappingNodesToFront(_interactingNodeId!);
+
+    notifyListeners();
+  }
+
+  void _createNewNodeAt(Offset position) {
+    final isContainer = _activeTool == ToolType.container;
+    final nodeSize = isContainer
+        ? GraphNode.defaultContainerSize
+        : GraphNode.defaultNodeSize;
+
+    // Centra il nodo rispetto al click del mouse
+    final centeredPosition = Offset(
+      position.dx - nodeSize.width / 2,
+      position.dy - nodeSize.height / 2,
+    );
+
+    var nodeToAdd = GraphNode(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      name: isContainer ? 'New Container' : 'New Node',
+      position: centeredPosition,
+      size: nodeSize,
+      oldSize: isContainer ? nodeSize : null,
+      isContainer: isContainer,
+    );
+
+    addNode(nodeToAdd);
+
+    if (isContainer) {
+      autoAdoptNodes(nodeToAdd);
+    }
+
+    // Torna automaticamente al tool puntatore e seleziona il nuovo nodo
+    setTool(ToolType.pointer);
+    setSelection(nodeToAdd.id);
+  }
+
+  void handleToolChange(ToolType tool) {
+    _startPosition = null;
+    _currentPosition = null;
+    setTool(tool);
+  }
+
+  // ==========================================
+  // MOTORE DI GERARCHIA GEOMETRICA
+  // ==========================================
+// ==========================================
+  // MOTORE DI GERARCHIA GEOMETRICA
+  // ==========================================
+  void _recalculateHierarchyBasedOnGeometry() {
+    Map<String, Rect> rects = {};
+    for (var n in _nodes) {
+      rects[n.id] = _getEffectiveRect(n);
+    }
+
+    for (int i = 0; i < _nodes.length; i++) {
+      final node = _nodes[i];
+
+      // 1. PROTEZIONE COLLAPSE: Se il nodo si trova dentro un container collassato,
+      // la sua gerarchia è "congelata". Saltiamo il ricalcolo per lui.
+      if (_isNodeHiddenByCollapsedParent(node)) {
+        continue;
+      }
+
+      String? newParentId;
+      double minArea = double.infinity;
+
+      for (var container in _nodes) {
+        if (!container.isContainer || container.id == node.id) continue;
+
+        // Opzionale ma consigliato: un container attualmente collassato
+        // non dovrebbe inglobare nuovi elementi estranei.
+        if (container.isCollapsed) continue;
+
+        final cRect = rects[container.id]!;
+        final nRect = rects[node.id]!;
+
+        final inflatedCRect = cRect.inflate(0.5);
+
+        if (inflatedCRect.contains(nRect.topLeft) && inflatedCRect.contains(nRect.bottomRight)) {
+          final area = cRect.width * cRect.height;
+          if (area < minArea) {
+            minArea = area;
+            newParentId = container.id;
+          }
+        }
+      }
+
+      if (newParentId != null) {
+        _nodes[i] = node.copyWith(parentId: newParentId);
+      } else {
+        _nodes[i] = node.copyWith(clearParent: true);
+      }
+    }
+
+    _enforceParentChildZOrder();
+  }
+
+  // HELPER: Controlla se il nodo ha un antenato attualmente collassato
+  bool _isNodeHiddenByCollapsedParent(GraphNode node) {
+    String? currentParentId = node.parentId;
+    while (currentParentId != null) {
+      final pIndex = _nodes.indexWhere((n) => n.id == currentParentId);
+      if (pIndex == -1) break;
+      if (_nodes[pIndex].isCollapsed) return true; // Trovato un nonno/padre chiuso!
+      currentParentId = _nodes[pIndex].parentId;
+    }
+    return false;
+  }}
