@@ -3,11 +3,47 @@ import 'package:provider/provider.dart';
 import '../model/graph_models.dart';
 import '../provider/graph_provider.dart';
 
-class GraphTreeSidebar extends StatelessWidget {
+class GraphTreeSidebar extends StatefulWidget {
   const GraphTreeSidebar({Key? key}) : super(key: key);
 
   @override
+  State<GraphTreeSidebar> createState() => _GraphTreeSidebarState();
+}
+
+class _GraphTreeSidebarState extends State<GraphTreeSidebar> {
+  bool _isCollapsed = false;
+
+  @override
   Widget build(BuildContext context) {
+    if (_isCollapsed) {
+      return Container(
+        width: 48,
+        decoration: BoxDecoration(
+          color: Colors.grey.shade50,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 8,
+              offset: const Offset(2, 0),
+            ),
+          ],
+          border: Border(
+            right: BorderSide(color: Colors.grey.shade200, width: 1),
+          ),
+        ),
+        child: Column(
+          children: [
+            const SizedBox(height: 8),
+            IconButton(
+              icon: const Icon(Icons.keyboard_double_arrow_right),
+              onPressed: () => setState(() => _isCollapsed = false),
+              tooltip: 'Espandi struttura',
+            ),
+          ],
+        ),
+      );
+    }
+
     // Ascoltiamo i cambiamenti del provider (nodi aggiunti, mossi, selezionati)
     final provider = context.watch<GraphProvider>();
 
@@ -20,6 +56,13 @@ class GraphTreeSidebar extends StatelessWidget {
       width: 260, // Larghezza della sidebar laterale
       decoration: BoxDecoration(
         color: Colors.grey.shade50,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(2, 0),
+          ),
+        ],
         border: Border(
           right: BorderSide(color: Colors.grey.shade200, width: 1),
         ),
@@ -38,13 +81,22 @@ class GraphTreeSidebar extends StatelessWidget {
                   size: 20,
                 ),
                 const SizedBox(width: 8),
-                const Text(
-                  'Struttura del Grafo',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
-                    color: Colors.black87,
+                const Expanded(
+                  child: Text(
+                    'Struttura',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                      color: Colors.black87,
+                    ),
                   ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.keyboard_double_arrow_left, size: 20),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  onPressed: () => setState(() => _isCollapsed = true),
+                  tooltip: 'Comprimi',
                 ),
               ],
             ),
@@ -126,13 +178,16 @@ class GraphTreeSidebar extends StatelessWidget {
                   ), // Spazio vuoto compensativo per i nodi normali senza freccia
                 // Icona del tipo di nodo (Cartella/Widget)
                 Icon(
-                  node.isContainer
-                      ? (node.isCollapsed
-                            ? Icons.folder_rounded
-                            : Icons.folder_open_rounded)
-                      : Icons.widgets_outlined,
+                  node.icon ??
+                      (node.isContainer
+                          ? (node.isCollapsed
+                                ? Icons.folder_rounded
+                                : Icons.folder_open_rounded)
+                          : Icons.widgets_outlined),
                   size: 18,
-                  color: isSelected ? Colors.blue : Colors.grey.shade600,
+                  color: isSelected
+                      ? Colors.blue
+                      : (node.icon != null ? node.color : Colors.grey.shade600),
                 ),
                 const SizedBox(width: 8),
 

@@ -20,11 +20,15 @@ class EditorScreen extends StatelessWidget {
 
           // --- AREA CANVAS ---
           Expanded(
-            child: Row(
+            child: Stack(
               children: [
-                const GraphTreeSidebar(), // Ha una sua larghezza fissa (es. 260)
-                // --- FIX: Avvolgi il Canvas in un Expanded ---
-                const Expanded(child: ClipRect(child: GraphCanvas())),
+                const Positioned.fill(child: ClipRect(child: GraphCanvas())),
+                const Positioned(
+                  left: 0,
+                  top: 0,
+                  bottom: 0,
+                  child: GraphTreeSidebar(),
+                ),
               ],
             ),
           ),
