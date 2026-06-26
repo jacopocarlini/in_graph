@@ -10,8 +10,12 @@ class NodeWidget extends StatefulWidget {
   final bool isGhost;
   final Function onTapOut;
 
-  const NodeWidget({Key? key, required this.node, this.isGhost = false, required this.onTapOut})
-    : super(key: key);
+  const NodeWidget({
+    Key? key,
+    required this.node,
+    this.isGhost = false,
+    required this.onTapOut,
+  }) : super(key: key);
 
   @override
   State<NodeWidget> createState() => _NodeWidgetState();
@@ -48,7 +52,9 @@ class _NodeWidgetState extends State<NodeWidget> {
     var node = widget.node;
     final provider = context.watch<GraphProvider>();
     final isSelected = provider.selection.contains(node.id);
-    final isHovered = provider.hoveredNodeId == node.id && provider.activeTool == ToolType.edge;
+    final isHovered =
+        provider.hoveredNodeId == node.id &&
+        provider.activeTool == ToolType.edge;
 
     final targetWidth = node.size.width;
     final targetHeight = node.size.height;
@@ -66,72 +72,69 @@ class _NodeWidgetState extends State<NodeWidget> {
           left: node.position.dx,
           top: node.position.dy,
           child: Opacity(
-            opacity: widget.isGhost ? 0.5 : 1.0,
+            opacity: _calculateOpacity(provider, node),
             child: Stack(
               clipBehavior: Clip.none,
               children: [
-                  // Il Box del Nodo/Container
-                  Container(
-                    width: targetWidth,
-                    height: targetHeight,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      border: node.borderStyle == BorderStyleType.solid
-                          ? Border.all(
-                              color: node.color,
-                              width: 1.5,
-                            )
-                          : null,
-                    ),
-                    child: node.borderStyle == BorderStyleType.dashed
-                        ? CustomPaint(
-                            painter: DashedBorderPainter(
-                              color: node.color,
-                              strokeWidth: 1.5,
-                              borderRadius: 16,
-                            ),
-                            child: buildNode(node, provider),
-                          )
-                        : buildNode(node, provider),
+                // Il Box del Nodo/Container
+                Container(
+                  width: targetWidth,
+                  height: targetHeight,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: node.borderStyle == BorderStyleType.solid
+                        ? Border.all(color: node.color, width: 1.5)
+                        : null,
                   ),
-
-                  // Rettangolo di selezione esterno (Blue Glow/Border)
-                  if (isSelected || isHovered)
-                    Positioned(
-                      left: -3,
-                      top: -3,
-                      right: -3,
-                      bottom: -3,
-                      child: IgnorePointer(
-                        child: Container(
-                          decoration: BoxDecoration(
-                            border: Border.all(
-                              color: Colors.blue.withOpacity(0.6),
-                              width: 2.0,
-                            ),
-                            borderRadius: BorderRadius.circular(19),
+                  child: node.borderStyle == BorderStyleType.dashed
+                      ? CustomPaint(
+                          painter: DashedBorderPainter(
+                            color: node.color,
+                            strokeWidth: 1.5,
+                            borderRadius: 16,
                           ),
+                          child: buildNode(node, provider),
+                        )
+                      : buildNode(node, provider),
+                ),
+
+                // Rettangolo di selezione esterno (Blue Glow/Border)
+                if (isSelected || isHovered)
+                  Positioned(
+                    left: -3,
+                    top: -3,
+                    right: -3,
+                    bottom: -3,
+                    child: IgnorePointer(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          border: Border.all(
+                            color: Colors.blue.withOpacity(0.6),
+                            width: 2.0,
+                          ),
+                          borderRadius: BorderRadius.circular(19),
                         ),
                       ),
                     ),
+                  ),
 
-                  // ==========================================
-                  // NUOVO: Maniglie e Cursori di Resize
-                  // ==========================================
-                  if (showResizeHandles &&
-                      provider.activeTool == ToolType.pointer)
-                    Positioned.fill(
-                      // Chiamiamo il nuovo metodo
-                      child: _buildContinuousResizeHandles(
-                        targetWidth,
-                        targetHeight,
-                      ),
+                // ==========================================
+                // NUOVO: Maniglie e Cursori di Resize
+                // ==========================================
+                if (showResizeHandles &&
+                    provider.activeTool == ToolType.pointer)
+                  Positioned.fill(
+                    // Chiamiamo il nuovo metodo
+                    child: _buildContinuousResizeHandles(
+                      targetWidth,
+                      targetHeight,
                     ),
-                ],
-              ),
+                  ),
+              ],
             ),
           ),
+        ),
 
         // Testo in basso
         if (showTextBelow) ...[
@@ -151,6 +154,17 @@ class _NodeWidgetState extends State<NodeWidget> {
   // ==========================================
   // METODI HELPER DA AGGIUNGERE ALLA CLASSE
   // ==========================================
+
+  double _calculateOpacity(GraphProvider provider, GraphNode node) {
+    if (widget.isGhost) return 0.5;
+    if (provider.activeTool == ToolType.explorer &&
+        provider.hoveredNodeId != null) {
+      if (!provider.explorerActiveNodes.contains(node.id)) {
+        return 0.2;
+      }
+    }
+    return 1.0;
+  }
 
   Widget _buildContinuousResizeHandles(double w, double h) {
     // Spessore dell'area sensibile invisibile lungo il bordo

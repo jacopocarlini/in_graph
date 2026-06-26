@@ -36,7 +36,7 @@ class _PropertySidebarState extends State<PropertySidebar> {
           ),
         ],
       ),
-      child: isEdge 
+      child: isEdge
           ? _buildEdgeSidebar(provider, selectedEdgeIds.first)
           : _buildNodeSidebar(provider, selection.first),
     );
@@ -51,7 +51,9 @@ class _PropertySidebarState extends State<PropertySidebar> {
         Padding(
           padding: const EdgeInsets.all(16.0),
           child: Text(
-            node.name.isEmpty ? (node.isContainer ? "Container" : "Node") : node.name,
+            node.name.isEmpty
+                ? (node.isContainer ? "Container" : "Node")
+                : node.name,
             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
           ),
         ),
@@ -83,9 +85,9 @@ class _PropertySidebarState extends State<PropertySidebar> {
   Widget _buildEdgeSidebar(GraphProvider provider, String edgeId) {
     final aggregatedEdges = provider.getAggregatedEdges();
     final GraphEdge edge = aggregatedEdges.cast<GraphEdge>().firstWhere(
-          (e) => e.id == edgeId,
-          orElse: () => provider.edges.firstWhere((e) => e.id == edgeId),
-        );
+      (e) => e.id == edgeId,
+      orElse: () => provider.edges.firstWhere((e) => e.id == edgeId),
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -177,10 +179,20 @@ class _PropertySidebarState extends State<PropertySidebar> {
   }
 
   Widget _buildNodeColorSelector(GraphNode node, GraphProvider provider) {
-    final colors = [Colors.grey, Colors.blue, Colors.green, Colors.orange, Colors.red, Colors.purple];
+    final colors = [
+      Colors.grey,
+      Colors.blue,
+      Colors.green,
+      Colors.orange,
+      Colors.red,
+      Colors.purple,
+    ];
     return Row(
       children: [
-        const Text("Color", style: TextStyle(color: Colors.black54, fontSize: 13)),
+        const Text(
+          "Color",
+          style: TextStyle(color: Colors.black54, fontSize: 13),
+        ),
         const Spacer(),
         ...colors.map((color) {
           final isSelected = node.color.value == color.value;
@@ -193,9 +205,15 @@ class _PropertySidebarState extends State<PropertySidebar> {
               decoration: BoxDecoration(
                 color: color,
                 shape: BoxShape.circle,
-                border: isSelected ? Border.all(color: Colors.blue, width: 2) : Border.all(color: Colors.grey.shade300, width: 1),
+                border: isSelected
+                    ? Border.all(color: Colors.blue, width: 2)
+                    : Border.all(color: Colors.grey.shade300, width: 1),
               ),
-              child: isSelected ? const Center(child: Icon(Icons.check, size: 12, color: Colors.white)) : null,
+              child: isSelected
+                  ? const Center(
+                      child: Icon(Icons.check, size: 12, color: Colors.white),
+                    )
+                  : null,
             ),
           );
         }).toList(),
@@ -204,10 +222,20 @@ class _PropertySidebarState extends State<PropertySidebar> {
   }
 
   Widget _buildEdgeColorSelector(GraphEdge edge, GraphProvider provider) {
-    final colors = [Colors.blueGrey, Colors.blue, Colors.green, Colors.orange, Colors.red, Colors.purple];
+    final colors = [
+      Colors.blueGrey,
+      Colors.blue,
+      Colors.green,
+      Colors.orange,
+      Colors.red,
+      Colors.purple,
+    ];
     return Row(
       children: [
-        const Text("Color", style: TextStyle(color: Colors.black54, fontSize: 13)),
+        const Text(
+          "Color",
+          style: TextStyle(color: Colors.black54, fontSize: 13),
+        ),
         const Spacer(),
         ...colors.map((color) {
           final isSelected = edge.color.value == color.value;
@@ -220,9 +248,15 @@ class _PropertySidebarState extends State<PropertySidebar> {
               decoration: BoxDecoration(
                 color: color,
                 shape: BoxShape.circle,
-                border: isSelected ? Border.all(color: Colors.blue, width: 2) : Border.all(color: Colors.grey.shade300, width: 1),
+                border: isSelected
+                    ? Border.all(color: Colors.blue, width: 2)
+                    : Border.all(color: Colors.grey.shade300, width: 1),
               ),
-              child: isSelected ? const Center(child: Icon(Icons.check, size: 12, color: Colors.white)) : null,
+              child: isSelected
+                  ? const Center(
+                      child: Icon(Icons.check, size: 12, color: Colors.white),
+                    )
+                  : null,
             ),
           );
         }).toList(),
@@ -233,7 +267,10 @@ class _PropertySidebarState extends State<PropertySidebar> {
   Widget _buildNodeBorderSelector(GraphNode node, GraphProvider provider) {
     return Row(
       children: [
-        const Text("Border", style: TextStyle(color: Colors.black54, fontSize: 13)),
+        const Text(
+          "Border",
+          style: TextStyle(color: Colors.black54, fontSize: 13),
+        ),
         const Spacer(),
         _buildToggleOption(
           "Solid",
@@ -255,7 +292,10 @@ class _PropertySidebarState extends State<PropertySidebar> {
   Widget _buildEdgeBorderSelector(GraphEdge edge, GraphProvider provider) {
     return Row(
       children: [
-        const Text("Style", style: TextStyle(color: Colors.black54, fontSize: 13)),
+        const Text(
+          "Style",
+          style: TextStyle(color: Colors.black54, fontSize: 13),
+        ),
         const Spacer(),
         _buildToggleOption(
           "Solid",
@@ -277,26 +317,42 @@ class _PropertySidebarState extends State<PropertySidebar> {
   Widget _buildArrowheadsSelector(GraphEdge edge, GraphProvider provider) {
     return Row(
       children: [
-        const Text("Heads", style: TextStyle(color: Colors.black54, fontSize: 13)),
+        const Text(
+          "Heads",
+          style: TextStyle(color: Colors.black54, fontSize: 13),
+        ),
         const Spacer(),
         _buildToggleOption(
           "Source",
           Icons.west,
           edge.showSourceArrow,
-          () => provider.updateEdgeArrows(edge.id, showSource: !edge.showSourceArrow, showTarget: edge.showTargetArrow),
+          () => provider.updateEdgeArrows(
+            edge.id,
+            showSource: !edge.showSourceArrow,
+            showTarget: edge.showTargetArrow,
+          ),
         ),
         const SizedBox(width: 8),
         _buildToggleOption(
           "Target",
           Icons.east,
           edge.showTargetArrow,
-          () => provider.updateEdgeArrows(edge.id, showSource: edge.showSourceArrow, showTarget: !edge.showTargetArrow),
+          () => provider.updateEdgeArrows(
+            edge.id,
+            showSource: edge.showSourceArrow,
+            showTarget: !edge.showTargetArrow,
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildToggleOption(String label, IconData icon, bool isSelected, VoidCallback onTap) {
+  Widget _buildToggleOption(
+    String label,
+    IconData icon,
+    bool isSelected,
+    VoidCallback onTap,
+  ) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -304,14 +360,27 @@ class _PropertySidebarState extends State<PropertySidebar> {
         decoration: BoxDecoration(
           color: isSelected ? Colors.white : Colors.grey.shade50,
           border: Border.all(
-            color: isSelected ? Colors.blue.withOpacity(0.5) : Colors.grey.shade300,
+            color: isSelected
+                ? Colors.blue.withOpacity(0.5)
+                : Colors.grey.shade300,
           ),
           borderRadius: BorderRadius.circular(6),
-          boxShadow: isSelected ? [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4)] : null,
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 4,
+                  ),
+                ]
+              : null,
         ),
         child: Row(
           children: [
-            Icon(icon, size: 14, color: isSelected ? Colors.blue : Colors.black54),
+            Icon(
+              icon,
+              size: 14,
+              color: isSelected ? Colors.blue : Colors.black54,
+            ),
             const SizedBox(width: 4),
             Text(
               label,
@@ -339,7 +408,10 @@ class _PropertySidebarState extends State<PropertySidebar> {
       relatedIds.add(nodeId);
 
       // Risaliamo verso l'alto (Padri/Antenati)
-      final node = provider.nodes.cast<GraphNode?>().firstWhere((n) => n?.id == nodeId, orElse: () => null);
+      final node = provider.nodes.cast<GraphNode?>().firstWhere(
+        (n) => n?.id == nodeId,
+        orElse: () => null,
+      );
       if (node?.parentId != null) {
         collectHierarchy(node!.parentId!);
       }
@@ -372,8 +444,8 @@ class _PropertySidebarState extends State<PropertySidebar> {
         final nodeToMove = filteredNodes[oldIndex];
         final targetNode = filteredNodes[newIndex];
 
-        final List<GraphNode> allNodesReversed =
-            provider.nodes.reversed.toList();
+        final List<GraphNode> allNodesReversed = provider.nodes.reversed
+            .toList();
         final int visualOldIndex = allNodesReversed.indexOf(nodeToMove);
         final int visualNewIndex = allNodesReversed.indexOf(targetNode);
 
@@ -410,11 +482,16 @@ class _PropertySidebarState extends State<PropertySidebar> {
                             ? (n.isContainer ? "Container" : "Node")
                             : n.name,
                         style: const TextStyle(
-                            fontSize: 12, fontWeight: FontWeight.bold),
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       Text(
                         n.isContainer ? "CONTAINER" : "ICON",
-                        style: const TextStyle(fontSize: 10, color: Colors.grey),
+                        style: const TextStyle(
+                          fontSize: 10,
+                          color: Colors.grey,
+                        ),
                       ),
                     ],
                   ),
@@ -434,7 +511,11 @@ class _PropertySidebarState extends State<PropertySidebar> {
   }
 
   // Helper per trovare l'indice visuale corretto nella lista globale partendo dalla filtrata
-  int allAllNodesIndex(List<GraphNode> all, List<GraphNode> filtered, int targetFilteredIndex) {
+  int allAllNodesIndex(
+    List<GraphNode> all,
+    List<GraphNode> filtered,
+    int targetFilteredIndex,
+  ) {
     final targetNode = filtered[targetFilteredIndex];
     return all.indexOf(targetNode);
   }

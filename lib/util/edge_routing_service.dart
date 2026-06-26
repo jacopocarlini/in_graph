@@ -13,12 +13,12 @@ class _AStarNode {
 
 class EdgeRoutingService {
   static List<Offset> calculateOrthogonalPoints(
-      Rect source,
-      Rect target, {
-        List<Rect> obstacles = const [],
-        double margin = 20.0,
-        double laneOffset = 0.0, // === NUOVO: Definisce la "corsia" parallela ===
-      }) {
+    Rect source,
+    Rect target, {
+    List<Rect> obstacles = const [],
+    double margin = 20.0,
+    double laneOffset = 0.0, // === NUOVO: Definisce la "corsia" parallela ===
+  }) {
     final start = source.center;
     final end = target.center;
 
@@ -56,7 +56,8 @@ class EdgeRoutingService {
       _AStarNode current = openList.removeAt(0);
       closedList.add(current);
 
-      if ((current.point.dx - end.dx).abs() < 1 && (current.point.dy - end.dy).abs() < 1) {
+      if ((current.point.dx - end.dx).abs() < 1 &&
+          (current.point.dy - end.dy).abs() < 1) {
         targetNode = current;
         break;
       }
@@ -64,10 +65,21 @@ class EdgeRoutingService {
       List<Offset> neighbors = _getNeighbors(current.point, sortedX, sortedY);
 
       for (var nextPoint in neighbors) {
-        if (closedList.any((n) => (n.point.dx - nextPoint.dx).abs() < 0.1 && (n.point.dy - nextPoint.dy).abs() < 0.1)) continue;
+        if (closedList.any(
+          (n) =>
+              (n.point.dx - nextPoint.dx).abs() < 0.1 &&
+              (n.point.dy - nextPoint.dy).abs() < 0.1,
+        ))
+          continue;
 
         // Controlla la collisione usando il margine base di sicurezza (non quello della corsia)
-        if (_segmentIntersectsObstacles(current.point, nextPoint, obstacles, margin)) continue;
+        if (_segmentIntersectsObstacles(
+          current.point,
+          nextPoint,
+          obstacles,
+          margin,
+        ))
+          continue;
 
         double tentativeG = current.g + (current.point - nextPoint).distance;
 
@@ -77,7 +89,13 @@ class EdgeRoutingService {
           if ((dir1 - dir2).abs() > 0.01) tentativeG += 10.0;
         }
 
-        _AStarNode? neighborNode = openList.where((n) => (n.point.dx - nextPoint.dx).abs() < 0.1 && (n.point.dy - nextPoint.dy).abs() < 0.1).firstOrNull;
+        _AStarNode? neighborNode = openList
+            .where(
+              (n) =>
+                  (n.point.dx - nextPoint.dx).abs() < 0.1 &&
+                  (n.point.dy - nextPoint.dy).abs() < 0.1,
+            )
+            .firstOrNull;
 
         if (neighborNode == null) {
           neighborNode = _AStarNode(nextPoint)
@@ -105,7 +123,11 @@ class EdgeRoutingService {
     return _calculateFallbackPath(source, target);
   }
 
-  static List<Offset> _getNeighbors(Offset p, List<double> xs, List<double> ys) {
+  static List<Offset> _getNeighbors(
+    Offset p,
+    List<double> xs,
+    List<double> ys,
+  ) {
     List<Offset> neighbors = [];
     int ix = xs.indexWhere((x) => (x - p.dx).abs() < 0.1);
     int iy = ys.indexWhere((y) => (y - p.dy).abs() < 0.1);
@@ -121,24 +143,41 @@ class EdgeRoutingService {
     return neighbors;
   }
 
-  static bool _segmentIntersectsObstacles(Offset p1, Offset p2, List<Rect> obstacles, double margin) {
+  static bool _segmentIntersectsObstacles(
+    Offset p1,
+    Offset p2,
+    List<Rect> obstacles,
+    double margin,
+  ) {
     final isVertical = (p1.dx - p2.dx).abs() < 0.1;
     final isHorizontal = (p1.dy - p2.dy).abs() < 0.1;
-    final safeMargin = margin * 0.8; // Permette alle corsie di viaggiare vicino ai nodi
+    final safeMargin =
+        margin * 0.8; // Permette alle corsie di viaggiare vicino ai nodi
 
     for (var rect in obstacles) {
       final expandedRect = Rect.fromLTRB(
-        rect.left - safeMargin, rect.top - safeMargin, rect.right + safeMargin, rect.bottom + safeMargin,
+        rect.left - safeMargin,
+        rect.top - safeMargin,
+        rect.right + safeMargin,
+        rect.bottom + safeMargin,
       );
 
       if (isVertical) {
         double minY = min(p1.dy, p2.dy);
         double maxY = max(p1.dy, p2.dy);
-        if (p1.dx > expandedRect.left && p1.dx < expandedRect.right && minY < expandedRect.bottom && maxY > expandedRect.top) return true;
+        if (p1.dx > expandedRect.left &&
+            p1.dx < expandedRect.right &&
+            minY < expandedRect.bottom &&
+            maxY > expandedRect.top)
+          return true;
       } else if (isHorizontal) {
         double minX = min(p1.dx, p2.dx);
         double maxX = max(p1.dx, p2.dx);
-        if (p1.dy > expandedRect.top && p1.dy < expandedRect.bottom && minX < expandedRect.right && maxX > expandedRect.left) return true;
+        if (p1.dy > expandedRect.top &&
+            p1.dy < expandedRect.bottom &&
+            minX < expandedRect.right &&
+            maxX > expandedRect.left)
+          return true;
       }
     }
     return false;
@@ -154,7 +193,9 @@ class EdgeRoutingService {
       final next = path[i + 1];
 
       // Rimuove i punti inutili senza deformare la linea calcolata da A*
-      final isCollinear = ((prev.dx - curr.dx).abs() < 0.1 && (curr.dx - next.dx).abs() < 0.1) ||
+      final isCollinear =
+          ((prev.dx - curr.dx).abs() < 0.1 &&
+              (curr.dx - next.dx).abs() < 0.1) ||
           ((prev.dy - curr.dy).abs() < 0.1 && (curr.dy - next.dy).abs() < 0.1);
       if (!isCollinear) {
         simplified.add(curr);
@@ -165,28 +206,53 @@ class EdgeRoutingService {
   }
 
   static List<Offset> _calculateFallbackPath(Rect source, Rect target) {
-    return [source.center, Offset(source.center.dx, target.center.dy), target.center];
+    return [
+      source.center,
+      Offset(source.center.dx, target.center.dy),
+      target.center,
+    ];
   }
 
-  static Path calculateOrthogonalPath(Rect source, Rect target, {List<Rect> obstacles = const [], double laneOffset = 0.0}) {
-    final points = calculateOrthogonalPoints(source, target, obstacles: obstacles, laneOffset: laneOffset);
+  static Path calculateOrthogonalPath(
+    Rect source,
+    Rect target, {
+    List<Rect> obstacles = const [],
+    double laneOffset = 0.0,
+  }) {
+    final points = calculateOrthogonalPoints(
+      source,
+      target,
+      obstacles: obstacles,
+      laneOffset: laneOffset,
+    );
     final path = Path()..moveTo(points.first.dx, points.first.dy);
-    for (int i = 1; i < points.length; i++) path.lineTo(points[i].dx, points[i].dy);
+    for (int i = 1; i < points.length; i++)
+      path.lineTo(points[i].dx, points[i].dy);
     return path;
   }
 
-  static bool isPointNearEdge(Offset click, List<Offset> points, double threshold) {
+  static bool isPointNearEdge(
+    Offset click,
+    List<Offset> points,
+    double threshold,
+  ) {
     for (int i = 0; i < points.length - 1; i++) {
       final p1 = points[i];
       final p2 = points[i + 1];
       if ((p1.dy - p2.dy).abs() < 0.1) {
         final minX = min(p1.dx, p2.dx);
         final maxX = max(p1.dx, p2.dx);
-        if (click.dx >= minX - threshold && click.dx <= maxX + threshold && (click.dy - p1.dy).abs() <= threshold) return true;
+        if (click.dx >= minX - threshold &&
+            click.dx <= maxX + threshold &&
+            (click.dy - p1.dy).abs() <= threshold)
+          return true;
       } else if ((p1.dx - p2.dx).abs() < 0.1) {
         final minY = min(p1.dy, p2.dy);
         final maxY = max(p1.dy, p2.dy);
-        if (click.dy >= minY - threshold && click.dy <= maxY + threshold && (click.dx - p1.dx).abs() <= threshold) return true;
+        if (click.dy >= minY - threshold &&
+            click.dy <= maxY + threshold &&
+            (click.dx - p1.dx).abs() <= threshold)
+          return true;
       }
     }
     return false;

@@ -18,9 +18,7 @@ class LayersPanel extends StatelessWidget {
       width: 250,
       decoration: BoxDecoration(
         color: Colors.white,
-        border: Border(
-          left: BorderSide(color: Colors.grey.shade300, width: 1),
-        ),
+        border: Border(left: BorderSide(color: Colors.grey.shade300, width: 1)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
@@ -46,10 +44,7 @@ class LayersPanel extends StatelessWidget {
                 SizedBox(width: 8),
                 Text(
                   'Layers',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                 ),
               ],
             ),
@@ -68,31 +63,31 @@ class LayersPanel extends StatelessWidget {
           Expanded(
             child: reversedNodes.isEmpty
                 ? Center(
-              child: Text(
-                "Nessun nodo",
-                style: TextStyle(color: Colors.grey.shade400),
-              ),
-            )
+                    child: Text(
+                      "Nessun nodo",
+                      style: TextStyle(color: Colors.grey.shade400),
+                    ),
+                  )
                 : ReorderableListView.builder(
-              // Usiamo la lista invertita per contare e popolare gli item
-              itemCount: reversedNodes.length,
-              onReorder: (oldIndex, newIndex) {
-                provider.reorderNodes(oldIndex, newIndex);
-              },
-              itemBuilder: (context, index) {
-                // Prendiamo il nodo dalla lista invertita
-                final node = reversedNodes[index];
-                final isSelected = provider.selection.contains(node.id);
+                    // Usiamo la lista invertita per contare e popolare gli item
+                    itemCount: reversedNodes.length,
+                    onReorder: (oldIndex, newIndex) {
+                      provider.reorderNodes(oldIndex, newIndex);
+                    },
+                    itemBuilder: (context, index) {
+                      // Prendiamo il nodo dalla lista invertita
+                      final node = reversedNodes[index];
+                      final isSelected = provider.selection.contains(node.id);
 
-                return _buildLayerItem(
-                  context: context,
-                  node: node,
-                  isSelected: isSelected,
-                  provider: provider,
-                  key: ValueKey(node.id),
-                );
-              },
-            ),
+                      return _buildLayerItem(
+                        context: context,
+                        node: node,
+                        isSelected: isSelected,
+                        provider: provider,
+                        key: ValueKey(node.id),
+                      );
+                    },
+                  ),
           ),
         ],
       ),
@@ -135,7 +130,9 @@ class LayersPanel extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                    fontWeight: isSelected
+                        ? FontWeight.bold
+                        : FontWeight.normal,
                     color: isSelected ? Colors.blue.shade900 : Colors.black87,
                   ),
                 ),

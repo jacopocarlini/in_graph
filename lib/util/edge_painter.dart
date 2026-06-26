@@ -32,7 +32,9 @@ class EdgePainter extends CustomPainter {
       final effSource = _getEffectiveNode(edge.sourceId, provider);
       final effTarget = _getEffectiveNode(edge.targetId, provider);
 
-      if (effSource != null && effTarget != null && effSource.id != effTarget.id) {
+      if (effSource != null &&
+          effTarget != null &&
+          effSource.id != effTarget.id) {
         nodePorts.putIfAbsent(effSource.id, () => []).add(edge.id);
         nodePorts.putIfAbsent(effTarget.id, () => []).add(edge.id);
       }
@@ -45,8 +47,18 @@ class EdgePainter extends CustomPainter {
 
       if (source == null || target == null || source.id == target.id) continue;
 
-      final sRect = Rect.fromLTWH(source.position.dx, source.position.dy, source.size.width, source.size.height);
-      final tRect = Rect.fromLTWH(target.position.dx, target.position.dy, target.size.width, target.size.height);
+      final sRect = Rect.fromLTWH(
+        source.position.dx,
+        source.position.dy,
+        source.size.width,
+        source.size.height,
+      );
+      final tRect = Rect.fromLTWH(
+        target.position.dx,
+        target.position.dy,
+        target.size.width,
+        target.size.height,
+      );
 
       // Calcoliamo l'indice dello slot unico per questo edge su entrambi i nodi
       final sourceIndex = nodePorts[source.id]!.indexOf(edge.id);
@@ -67,20 +79,32 @@ class EdgePainter extends CustomPainter {
 
       if (dx.abs() > dy.abs()) {
         if (sourceTotal > 1) {
-          final step = ((source.size.height * 0.7) / (sourceTotal - 1)).clamp(minStep, 25.0);
+          final step = ((source.size.height * 0.7) / (sourceTotal - 1)).clamp(
+            minStep,
+            25.0,
+          );
           sOffset = Offset(0, (sourceIndex - (sourceTotal - 1) / 2) * step);
         }
         if (targetTotal > 1) {
-          final step = ((target.size.height * 0.7) / (targetTotal - 1)).clamp(minStep, 25.0);
+          final step = ((target.size.height * 0.7) / (targetTotal - 1)).clamp(
+            minStep,
+            25.0,
+          );
           tOffset = Offset(0, (targetIndex - (targetTotal - 1) / 2) * step);
         }
       } else {
         if (sourceTotal > 1) {
-          final step = ((source.size.width * 0.7) / (sourceTotal - 1)).clamp(minStep, 25.0);
+          final step = ((source.size.width * 0.7) / (sourceTotal - 1)).clamp(
+            minStep,
+            25.0,
+          );
           sOffset = Offset((sourceIndex - (sourceTotal - 1) / 2) * step, 0);
         }
         if (targetTotal > 1) {
-          final step = ((target.size.width * 0.7) / (targetTotal - 1)).clamp(minStep, 25.0);
+          final step = ((target.size.width * 0.7) / (targetTotal - 1)).clamp(
+            minStep,
+            25.0,
+          );
           tOffset = Offset((targetIndex - (targetTotal - 1) / 2) * step, 0);
         }
       }
@@ -97,14 +121,23 @@ class EdgePainter extends CustomPainter {
       List<Rect> obstacles = [];
       for (var node in provider.visibleNodes) {
         if (node.id == source.id || node.id == target.id) continue;
-        
-        // Se il nodo è un container che contiene la sorgente o il target, 
+
+        // Se il nodo è un container che contiene la sorgente o il target,
         // NON deve essere un ostacolo (la freccia deve poterci passare dentro)
-        if (node.isContainer && (provider.isAncestor(node.id, source.id) || provider.isAncestor(node.id, target.id))) {
+        if (node.isContainer &&
+            (provider.isAncestor(node.id, source.id) ||
+                provider.isAncestor(node.id, target.id))) {
           continue;
         }
 
-        obstacles.add(Rect.fromLTWH(node.position.dx, node.position.dy, node.size.width, node.size.height));
+        obstacles.add(
+          Rect.fromLTWH(
+            node.position.dx,
+            node.position.dy,
+            node.size.width,
+            node.size.height,
+          ),
+        );
       }
 
       Path path = EdgeRoutingService.calculateOrthogonalPath(
@@ -125,7 +158,9 @@ class EdgePainter extends CustomPainter {
       if (isSelected) {
         final selectionGlowPaint = Paint()
           ..color = Colors.blue.withOpacity(0.15)
-          ..strokeWidth = (isAggregated ? 3.0 : 2.0) + 10.0 // Più largo della freccia
+          ..strokeWidth =
+              (isAggregated ? 3.0 : 2.0) +
+              10.0 // Più largo della freccia
           ..style = PaintingStyle.stroke
           ..strokeCap = StrokeCap.round;
 
@@ -134,8 +169,16 @@ class EdgePainter extends CustomPainter {
       }
 
       // --- 2. DISEGNO FRECCIA REALE ---
+      double opacity = 1.0;
+      if (provider.activeTool == ToolType.explorer &&
+          provider.hoveredNodeId != null) {
+        if (!provider.explorerActiveEdges.contains(edge.id)) {
+          opacity = 0.2;
+        }
+      }
+
       // La freccia mantiene il suo colore originale anche se selezionata
-      final arrowColor = edge.color;
+      final arrowColor = edge.color.withOpacity(opacity);
 
       final currentPaint = Paint()
         ..color = arrowColor
@@ -163,14 +206,17 @@ class EdgePainter extends CustomPainter {
       final temp = provider.tempEdge!;
 
       // Troviamo la sorgente effettiva anche per il ghost edge
-      final source = _getEffectiveNode(temp.sourceId, provider) ??
-          (provider.visibleNodes.isNotEmpty ? provider.visibleNodes.first : provider.nodes.first);
+      final source =
+          _getEffectiveNode(temp.sourceId, provider) ??
+          (provider.visibleNodes.isNotEmpty
+              ? provider.visibleNodes.first
+              : provider.nodes.first);
 
       final sRect = Rect.fromLTWH(
-          source.position.dx,
-          source.position.dy,
-          source.size.width,
-          source.size.height
+        source.position.dx,
+        source.position.dy,
+        source.size.width,
+        source.size.height,
       );
 
       final sourceCenter = sRect.center;
@@ -222,7 +268,10 @@ class EdgePainter extends CustomPainter {
 
     final newPath = Path();
     for (int i = 0; i < metrics.length - 1; i++) {
-      newPath.addPath(metrics[i].extractPath(0, metrics[i].length), Offset.zero);
+      newPath.addPath(
+        metrics[i].extractPath(0, metrics[i].length),
+        Offset.zero,
+      );
     }
     newPath.addPath(lastMetric.extractPath(0, targetOffset), Offset.zero);
 
@@ -264,18 +313,29 @@ class EdgePainter extends CustomPainter {
 
     final newPath = Path();
     // Aggiungiamo solo il pezzo del primo segmento che si trova FUORI dal nodo sorgente
-    newPath.addPath(firstMetric.extractPath(targetOffset, firstMetric.length), Offset.zero);
+    newPath.addPath(
+      firstMetric.extractPath(targetOffset, firstMetric.length),
+      Offset.zero,
+    );
 
     // Aggiungiamo eventuali segmenti successivi (se il path è composto da più segmenti metrici)
     for (int i = 1; i < metrics.length; i++) {
-      newPath.addPath(metrics[i].extractPath(0, metrics[i].length), Offset.zero);
+      newPath.addPath(
+        metrics[i].extractPath(0, metrics[i].length),
+        Offset.zero,
+      );
     }
 
     return newPath;
   }
 
   /// Disegna la punta della freccia perfettamente orientata sul finale o inizio del tracciato
-  void _drawArrowhead(Canvas canvas, Path path, Color color, {bool atEnd = true}) {
+  void _drawArrowhead(
+    Canvas canvas,
+    Path path,
+    Color color, {
+    bool atEnd = true,
+  }) {
     final metrics = path.computeMetrics().toList();
     if (metrics.isEmpty) return;
 
@@ -351,5 +411,4 @@ class EdgePainter extends CustomPainter {
     }
     return null;
   }
-
 }

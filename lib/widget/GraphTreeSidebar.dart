@@ -12,7 +12,9 @@ class GraphTreeSidebar extends StatelessWidget {
     final provider = context.watch<GraphProvider>();
 
     // Prendiamo solo i nodi "Radice", ovvero quelli che non hanno nessun padre (parentId == null)
-    final rootNodes = provider.nodes.where((node) => node.parentId == null).toList();
+    final rootNodes = provider.nodes
+        .where((node) => node.parentId == null)
+        .toList();
 
     return Container(
       width: 260, // Larghezza della sidebar laterale
@@ -30,7 +32,11 @@ class GraphTreeSidebar extends StatelessWidget {
             padding: const EdgeInsets.all(16.0),
             child: Row(
               children: [
-                Icon(Icons.account_tree_outlined, color: Colors.blue.shade700, size: 20),
+                Icon(
+                  Icons.account_tree_outlined,
+                  color: Colors.blue.shade700,
+                  size: 20,
+                ),
                 const SizedBox(width: 8),
                 const Text(
                   'Struttura del Grafo',
@@ -49,18 +55,18 @@ class GraphTreeSidebar extends StatelessWidget {
           Expanded(
             child: rootNodes.isEmpty
                 ? const Center(
-              child: Text(
-                'Nessun elemento nel grafo',
-                style: TextStyle(color: Colors.grey, fontSize: 13),
-              ),
-            )
+                    child: Text(
+                      'Nessun elemento nel grafo',
+                      style: TextStyle(color: Colors.grey, fontSize: 13),
+                    ),
+                  )
                 : ListView.builder(
-              itemCount: rootNodes.length,
-              itemBuilder: (context, index) {
-                // Avviamo la renderizzazione ricorsiva partendo dal livello 0 (Root)
-                return _buildTreeItem(rootNodes[index], 0, provider);
-              },
-            ),
+                    itemCount: rootNodes.length,
+                    itemBuilder: (context, index) {
+                      // Avviamo la renderizzazione ricorsiva partendo dal livello 0 (Root)
+                      return _buildTreeItem(rootNodes[index], 0, provider);
+                    },
+                  ),
           ),
         ],
       ),
@@ -72,7 +78,9 @@ class GraphTreeSidebar extends StatelessWidget {
     final isSelected = provider.selection.contains(node.id);
 
     // Cerchiamo tutti i nodi che hanno come parentId l'id del nodo corrente
-    final children = provider.nodes.where((n) => n.parentId == node.id).toList();
+    final children = provider.nodes
+        .where((n) => n.parentId == node.id)
+        .toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -85,7 +93,9 @@ class GraphTreeSidebar extends StatelessWidget {
           },
           child: Container(
             // Colore di sfondo se selezionato
-            color: isSelected ? Colors.blue.withOpacity(0.08) : Colors.transparent,
+            color: isSelected
+                ? Colors.blue.withOpacity(0.08)
+                : Colors.transparent,
             padding: EdgeInsets.only(
               // INDENTAZIONE DINAMICA: Più è profondo il nodo, più spazio lasciamo a sinistra
               left: 12.0 + (depth * 18.0),
@@ -111,12 +121,15 @@ class GraphTreeSidebar extends StatelessWidget {
                     ),
                   )
                 else
-                  const SizedBox(width: 22), // Spazio vuoto compensativo per i nodi normali senza freccia
-
+                  const SizedBox(
+                    width: 22,
+                  ), // Spazio vuoto compensativo per i nodi normali senza freccia
                 // Icona del tipo di nodo (Cartella/Widget)
                 Icon(
                   node.isContainer
-                      ? (node.isCollapsed ? Icons.folder_rounded : Icons.folder_open_rounded)
+                      ? (node.isCollapsed
+                            ? Icons.folder_rounded
+                            : Icons.folder_open_rounded)
                       : Icons.widgets_outlined,
                   size: 18,
                   color: isSelected ? Colors.blue : Colors.grey.shade600,
@@ -131,7 +144,9 @@ class GraphTreeSidebar extends StatelessWidget {
                         : node.name,
                     style: TextStyle(
                       fontSize: 13,
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                      fontWeight: isSelected
+                          ? FontWeight.bold
+                          : FontWeight.normal,
                       color: isSelected ? Colors.blue.shade800 : Colors.black87,
                     ),
                     maxLines: 1,
@@ -146,7 +161,9 @@ class GraphTreeSidebar extends StatelessWidget {
         // SEZIONE RICORSIVA: Se l'elemento è un container, NON è collassato e ha dei figli,
         // mappiamo i suoi figli eseguendo nuovamente questa funzione con depth + 1
         if (node.isContainer && !node.isCollapsed && children.isNotEmpty)
-          ...children.map((child) => _buildTreeItem(child, depth + 1, provider)).toList(),
+          ...children
+              .map((child) => _buildTreeItem(child, depth + 1, provider))
+              .toList(),
       ],
     );
   }

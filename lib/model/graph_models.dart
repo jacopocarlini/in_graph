@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 
 /// Enumeratore per gli strumenti della Toolbar
-enum ToolType { pointer, pan, node, container, edge }
+enum ToolType { pointer, pan, node, container, edge, explorer }
 
 enum BorderStyleType { solid, dashed }
+
 enum CardinalityType { single, multiple }
 
 /// Modello per i Nodi (sia foglie che container)
@@ -81,8 +82,12 @@ class GraphNode {
       color: color ?? this.color,
       borderStyle: borderStyle ?? this.borderStyle,
       cardinality: cardinality ?? this.cardinality,
-      cardinalityStart: clearCardinalityStart ? null : (cardinalityStart ?? this.cardinalityStart),
-      cardinalityEnd: clearCardinalityEnd ? null : (cardinalityEnd ?? this.cardinalityEnd),
+      cardinalityStart: clearCardinalityStart
+          ? null
+          : (cardinalityStart ?? this.cardinalityStart),
+      cardinalityEnd: clearCardinalityEnd
+          ? null
+          : (cardinalityEnd ?? this.cardinalityEnd),
     );
   }
 }

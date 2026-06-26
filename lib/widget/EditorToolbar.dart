@@ -55,6 +55,14 @@ class EditorToolbar extends StatelessWidget {
             isActive: activeTool == ToolType.edge,
             onTap: () => provider.handleToolChange(ToolType.edge),
           ),
+          const VerticalDivider(width: 32, indent: 16, endIndent: 16),
+          _ToolButton(
+            icon: Icons.travel_explore,
+            label: 'Explorer',
+            shortcut: '6',
+            isActive: activeTool == ToolType.explorer,
+            onTap: () => provider.handleToolChange(ToolType.explorer),
+          ),
         ],
       ),
     );

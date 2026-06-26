@@ -196,6 +196,9 @@ class _GraphCanvasState extends State<GraphCanvas>
     if (provider.activeTool == ToolType.edge) {
       return SystemMouseCursors.precise;
     }
+    if (provider.activeTool == ToolType.explorer) {
+      return SystemMouseCursors.help;
+    }
     return provider.activeTool == ToolType.pan
         ? SystemMouseCursors.grab
         : SystemMouseCursors.basic;
@@ -234,6 +237,10 @@ class _GraphCanvasState extends State<GraphCanvas>
       }
       if (event.character == '5') {
         provider.setTool(ToolType.edge);
+        provider.clearSelection();
+      }
+      if (event.character == '6') {
+        provider.setTool(ToolType.explorer);
         provider.clearSelection();
       }
     }
