@@ -124,55 +124,64 @@ class _GraphCanvasState extends State<GraphCanvas>
                   }, // I tuoi shortcut
                   child: InteractiveViewer(
                     transformationController: _transformController,
-                    // Se il provider sta trascinando un nodo, disabilitiamo il pan della telecamera!
-                    panEnabled: provider.canPanCanvas,
+                    // panEnabled a true permette SEMPRE il pan tramite trackpad
+                    panEnabled: true,
+                    trackpadScrollCausesScale: false,
                     scaleEnabled: true,
                     minScale: 0.3,
                     maxScale: 3.0,
                     constrained: false,
                     boundaryMargin: const EdgeInsets.all(double.infinity),
-                    child: Listener(
-                      // IL CUORE DELL'INPUT CENTRALIZZATO
-                      onPointerDown: (event) {
-                        if (!_canvasFocusNode.hasFocus) {
-                          _canvasFocusNode.requestFocus();
-                        }
-                        provider.handlePointerDown(event.localPosition);
-                      },
-                      onPointerMove: (event) => provider.handlePointerMove(
-                        event.localPosition,
-                        event.localDelta,
-                      ),
-                      onPointerUp: (event) =>
-                          provider.handlePointerUp(event.localPosition),
-                      onPointerHover: (event) =>
-                          provider.updateCurrentPosition(event.localPosition),
-                      child: MouseRegion(
-                        cursor: buildCursor(provider),
-                        child: SizedBox(
-                          width: 10000,
-                          height: 10000,
-                          child: Stack(
-                            clipBehavior: Clip.none,
-                            children: [
-                              ...buildNodes(provider),
-                              Positioned.fill(
-                                child: IgnorePointer(
-                                  child: CustomPaint(
-                                    painter: EdgePainter(provider: provider),
+                    child: GestureDetector(
+                      // Se non siamo in modalita 'pan', consumiamo l'evento di drag (mouse)
+                      // così l'InteractiveViewer non sposta la telecamera col mouse.
+                      // Gli eventi del trackpad invece bypassano la gesture arena e
+                      // vengono comunque gestiti dall'InteractiveViewer!
+                      onPanDown: provider.canPanCanvas ? null : (_) {},
+                      onPanUpdate: provider.canPanCanvas ? null : (_) {},
+                      child: Listener(
+                        // IL CUORE DELL'INPUT CENTRALIZZATO
+                        onPointerDown: (event) {
+                          if (!_canvasFocusNode.hasFocus) {
+                            _canvasFocusNode.requestFocus();
+                          }
+                          provider.handlePointerDown(event.localPosition);
+                        },
+                        onPointerMove: (event) => provider.handlePointerMove(
+                          event.localPosition,
+                          event.localDelta,
+                        ),
+                        onPointerUp: (event) =>
+                            provider.handlePointerUp(event.localPosition),
+                        onPointerHover: (event) =>
+                            provider.updateCurrentPosition(event.localPosition),
+                        child: MouseRegion(
+                          cursor: buildCursor(provider),
+                          child: SizedBox(
+                            width: 10000,
+                            height: 10000,
+                            child: Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                ...buildNodes(provider),
+                                Positioned.fill(
+                                  child: IgnorePointer(
+                                    child: CustomPaint(
+                                      painter: EdgePainter(provider: provider),
+                                    ),
                                   ),
                                 ),
-                              ),
-                              if (provider.currentPosition != null &&
-                                  (provider.activeTool == ToolType.node ||
-                                      activeTool == ToolType.container))
-                                (() {
-                                  return buildGhost(activeTool, provider);
-                                })(),
-                              if (provider.startPosition != null &&
-                                  provider.currentPosition != null)
-                                buildRectSelection(provider),
-                            ],
+                                if (provider.currentPosition != null &&
+                                    (provider.activeTool == ToolType.node ||
+                                        activeTool == ToolType.container))
+                                  (() {
+                                    return buildGhost(activeTool, provider);
+                                  })(),
+                                if (provider.startPosition != null &&
+                                    provider.currentPosition != null)
+                                  buildRectSelection(provider),
+                              ],
+                            ),
                           ),
                         ),
                       ),
