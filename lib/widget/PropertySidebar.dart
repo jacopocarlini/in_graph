@@ -141,6 +141,9 @@ class _PropertySidebarState extends State<PropertySidebar> {
       "Settings": Icons.settings,
     };
 
+    final currentIcon = node.icon;
+    final bool iconExists = icons.values.contains(currentIcon);
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       decoration: BoxDecoration(
@@ -149,18 +152,11 @@ class _PropertySidebarState extends State<PropertySidebar> {
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<IconData?>(
-          value: node.icon,
+          value: iconExists ? currentIcon : icons.values.first,
           isExpanded: true,
-          hint: Row(
-            children: [
-              Icon(icons["Default"], size: 20, color: Colors.blue),
-              const SizedBox(width: 12),
-              Text(node.isContainer ? "Container" : "Node"),
-            ],
-          ),
           items: icons.entries.map((e) {
             return DropdownMenuItem<IconData?>(
-              value: e.key == "Default" ? null : e.value,
+              value: e.value,
               child: Row(
                 children: [
                   Icon(e.value, size: 20, color: Colors.blue),

@@ -325,7 +325,7 @@ class _NodeWidgetState extends State<NodeWidget> {
               const SizedBox(width: 4),
 
               Icon(
-                node.icon ?? (node.isContainer ? Icons.folder : Icons.widgets),
+                node.icon!,
                 size: 20,
                 color: node.color,
               ),
@@ -367,7 +367,7 @@ class _NodeWidgetState extends State<NodeWidget> {
         // Icona principale al centro del box
         Center(
           child: Icon(
-            node.icon ?? (node.isContainer ? Icons.folder : Icons.widgets),
+            node.icon!,
             size: 32,
             color: node.color,
           ),

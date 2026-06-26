@@ -37,6 +37,10 @@ class GraphProvider extends ChangeNotifier {
   String? _interactingNodeId;
   String? _hoveredNodeId;
 
+  /// GlobalKey usata dal GraphCanvas per identificare il RepaintBoundary del canvas.
+  /// La toolbar la usa per catturare il PNG dell'intero grafo.
+  final GlobalKey canvasBoundaryKey = GlobalKey();
+
   // Controlla se la telecamera può muoversi: solo se il tool attivo è il PAN
   bool get canPanCanvas => _activeTool == ToolType.pan;
 
@@ -483,7 +487,22 @@ class GraphProvider extends ChangeNotifier {
   }
 
   // ==========================================
-  // GESTIONE NODI
+  // METODI DI IMPORTAZIONE
+  // ==========================================
+  void loadFromGraphData(List<GraphNode> newNodes, List<GraphEdge> newEdges) {
+    _nodes.clear();
+    _edges.clear();
+    _nodes.addAll(newNodes);
+    _edges.addAll(newEdges);
+    _selectionNodes.clear();
+    _selectedEdges.clear();
+    _draftEdgeSourceId = null;
+    _draftEdgeTarget = null;
+    notifyListeners();
+  }
+
+  // ==========================================
+  // GESTIONE SELEZIONE
   // ==========================================
   List<GraphNode> get visibleNodes {
     return _nodes.where((node) {
@@ -546,27 +565,6 @@ class GraphProvider extends ChangeNotifier {
     final index = _nodes.indexWhere((n) => n.id == id);
     if (index != -1) {
       _nodes[index] = _nodes[index].copyWith(borderStyle: borderStyle);
-      notifyListeners();
-    }
-  }
-
-  void updateNodeCardinality(String id, CardinalityType cardinality) {
-    final index = _nodes.indexWhere((n) => n.id == id);
-    if (index != -1) {
-      _nodes[index] = _nodes[index].copyWith(cardinality: cardinality);
-      notifyListeners();
-    }
-  }
-
-  void updateNodeCardinalityRange(String id, String? start, String? end) {
-    final index = _nodes.indexWhere((n) => n.id == id);
-    if (index != -1) {
-      _nodes[index] = _nodes[index].copyWith(
-        cardinalityStart: start,
-        cardinalityEnd: end,
-        clearCardinalityStart: start == null || start.isEmpty,
-        clearCardinalityEnd: end == null || end.isEmpty,
-      );
       notifyListeners();
     }
   }

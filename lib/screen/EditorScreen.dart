@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../widget/GraphCanvas.dart';
 import '../widget/EditorToolbar.dart';
 import '../widget/GraphTreeSidebar.dart';
-import '../widget/LayersPanel.dart';
 
 class EditorScreen extends StatelessWidget {
   const EditorScreen({super.key});

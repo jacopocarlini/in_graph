@@ -5,8 +5,6 @@ enum ToolType { pointer, pan, node, container, edge, explorer }
 
 enum BorderStyleType { solid, dashed }
 
-enum CardinalityType { single, multiple }
-
 /// Modello per i Nodi (sia foglie che container)
 class GraphNode {
   final String id;
@@ -20,9 +18,6 @@ class GraphNode {
   final IconData? icon;
   final Color color;
   final BorderStyleType borderStyle;
-  final CardinalityType cardinality;
-  final String? cardinalityStart;
-  final String? cardinalityEnd;
 
   // --- AGGIUNTA LOGICA SIZE GESTITA DAL MODELLO ---
   /// Dimensioni di default per un Nodo foglia (Quadrato 120x120)
@@ -40,13 +35,10 @@ class GraphNode {
     this.parentId,
     this.isCollapsed = false,
     this.isContainer = false,
-    this.icon,
+    IconData? icon,
     this.color = Colors.grey,
     this.borderStyle = BorderStyleType.solid,
-    this.cardinality = CardinalityType.single,
-    this.cardinalityStart,
-    this.cardinalityEnd,
-  });
+  }) : icon = icon ?? (isContainer ? Icons.folder : Icons.widgets);
 
   /// Metodo helper per creare una copia immutabile del nodo modificando solo alcuni campi
   GraphNode copyWith({
@@ -60,14 +52,9 @@ class GraphNode {
     IconData? icon,
     Color? color,
     BorderStyleType? borderStyle,
-    CardinalityType? cardinality,
-    String? cardinalityStart,
-    String? cardinalityEnd,
     Map<String, dynamic>? metadata,
     bool clearParent = false,
     bool clearIcon = false,
-    bool clearCardinalityStart = false,
-    bool clearCardinalityEnd = false,
   }) {
     return GraphNode(
       id: id,
@@ -81,13 +68,38 @@ class GraphNode {
       icon: clearIcon ? null : (icon ?? this.icon),
       color: color ?? this.color,
       borderStyle: borderStyle ?? this.borderStyle,
-      cardinality: cardinality ?? this.cardinality,
-      cardinalityStart: clearCardinalityStart
-          ? null
-          : (cardinalityStart ?? this.cardinalityStart),
-      cardinalityEnd: clearCardinalityEnd
-          ? null
-          : (cardinalityEnd ?? this.cardinalityEnd),
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'name': name,
+      'position': {'dx': position.dx, 'dy': position.dy},
+      'size': {'width': size.width, 'height': size.height},
+      'oldSize': oldSize != null ? {'width': oldSize!.width, 'height': oldSize!.height} : null,
+      'parentId': parentId,
+      'isCollapsed': isCollapsed,
+      'isContainer': isContainer,
+      'icon': icon != null ? {'codePoint': icon!.codePoint, 'fontFamily': icon!.fontFamily, 'fontPackage': icon!.fontPackage} : null,
+      'color': color.value,
+      'borderStyle': borderStyle.name,
+    };
+  }
+
+  factory GraphNode.fromMap(Map<dynamic, dynamic> map) {
+    return GraphNode(
+      id: map['id'],
+      name: map['name'],
+      position: Offset((map['position']['dx'] as num).toDouble(), (map['position']['dy'] as num).toDouble()),
+      size: Size((map['size']['width'] as num).toDouble(), (map['size']['height'] as num).toDouble()),
+      oldSize: map['oldSize'] != null ? Size((map['oldSize']['width'] as num).toDouble(), (map['oldSize']['height'] as num).toDouble()) : null,
+      parentId: map['parentId'],
+      isCollapsed: map['isCollapsed'] ?? false,
+      isContainer: map['isContainer'] ?? false,
+      icon: map['icon'] != null ? IconData(map['icon']['codePoint'] as int, fontFamily: map['icon']['fontFamily'] as String?, fontPackage: map['icon']['fontPackage'] as String?) : null,
+      color: map['color'] != null ? Color(map['color'] as int) : Colors.grey,
+      borderStyle: map['borderStyle'] != null ? BorderStyleType.values.firstWhere((e) => e.name == map['borderStyle'], orElse: () => BorderStyleType.solid) : BorderStyleType.solid,
     );
   }
 }
@@ -130,6 +142,32 @@ class GraphEdge {
       borderStyle: borderStyle ?? this.borderStyle,
       showSourceArrow: showSourceArrow ?? this.showSourceArrow,
       showTargetArrow: showTargetArrow ?? this.showTargetArrow,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'sourceId': sourceId,
+      'targetId': targetId,
+      'label': label,
+      'color': color.value,
+      'borderStyle': borderStyle.name,
+      'showSourceArrow': showSourceArrow,
+      'showTargetArrow': showTargetArrow,
+    };
+  }
+
+  factory GraphEdge.fromMap(Map<dynamic, dynamic> map) {
+    return GraphEdge(
+      id: map['id'],
+      sourceId: map['sourceId'],
+      targetId: map['targetId'],
+      label: map['label'],
+      color: map['color'] != null ? Color(map['color'] as int) : Colors.blueGrey,
+      borderStyle: map['borderStyle'] != null ? BorderStyleType.values.firstWhere((e) => e.name == map['borderStyle'], orElse: () => BorderStyleType.solid) : BorderStyleType.solid,
+      showSourceArrow: map['showSourceArrow'] ?? false,
+      showTargetArrow: map['showTargetArrow'] ?? true,
     );
   }
 }

@@ -157,30 +157,33 @@ class _GraphCanvasState extends State<GraphCanvas>
                             provider.updateCurrentPosition(event.localPosition),
                         child: MouseRegion(
                           cursor: buildCursor(provider),
-                          child: SizedBox(
-                            width: 10000,
-                            height: 10000,
-                            child: Stack(
-                              clipBehavior: Clip.none,
-                              children: [
-                                ...buildNodes(provider),
-                                Positioned.fill(
-                                  child: IgnorePointer(
-                                    child: CustomPaint(
-                                      painter: EdgePainter(provider: provider),
+                          child: RepaintBoundary(
+                            key: provider.canvasBoundaryKey,
+                            child: SizedBox(
+                              width: 10000,
+                              height: 10000,
+                              child: Stack(
+                                clipBehavior: Clip.none,
+                                children: [
+                                  ...buildNodes(provider),
+                                  Positioned.fill(
+                                    child: IgnorePointer(
+                                      child: CustomPaint(
+                                        painter: EdgePainter(provider: provider),
+                                      ),
                                     ),
                                   ),
-                                ),
-                                if (provider.currentPosition != null &&
-                                    (provider.activeTool == ToolType.node ||
-                                        activeTool == ToolType.container))
-                                  (() {
-                                    return buildGhost(activeTool, provider);
-                                  })(),
-                                if (provider.startPosition != null &&
-                                    provider.currentPosition != null)
-                                  buildRectSelection(provider),
-                              ],
+                                  if (provider.currentPosition != null &&
+                                      (provider.activeTool == ToolType.node ||
+                                          activeTool == ToolType.container))
+                                    (() {
+                                      return buildGhost(activeTool, provider);
+                                    })(),
+                                  if (provider.startPosition != null &&
+                                      provider.currentPosition != null)
+                                    buildRectSelection(provider),
+                                ],
+                              ),
                             ),
                           ),
                         ),

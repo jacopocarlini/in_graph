@@ -12,15 +12,6 @@ class EdgePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final edgePaint = Paint()
-      ..color = Colors.blueGrey
-      ..strokeWidth = 2.0
-      ..style = PaintingStyle.stroke;
-
-    final aggregatedPaint = Paint()
-      ..color = Colors.blueAccent
-      ..strokeWidth = 3.0
-      ..style = PaintingStyle.stroke;
 
     final aggregatedEdges = provider.getAggregatedEdges();
 
