@@ -190,6 +190,11 @@ class EdgePainter extends CustomPainter {
       if (edge.showSourceArrow) {
         _drawArrowhead(canvas, path, arrowColor, atEnd: false);
       }
+
+      // --- 4. DISEGNO LABEL ---
+      if (edge.label != null && edge.label!.isNotEmpty) {
+        _drawEdgeLabel(canvas, path, edge.label!, arrowColor);
+      }
     }
 
     // 3. Disegna l'Edge temporaneo (Ghost Edge durante il drag)
@@ -360,6 +365,54 @@ class EdgePainter extends CustomPainter {
         ..color = color
         ..style = PaintingStyle.fill,
     );
+  }
+
+  void _drawEdgeLabel(
+    Canvas canvas,
+    Path path,
+    String text,
+    Color color,
+  ) {
+    final metrics = path.computeMetrics().toList();
+    if (metrics.isEmpty) return;
+
+    // Troviamo il punto a metà della lunghezza totale
+    double totalLength = metrics.fold(0.0, (sum, m) => sum + m.length);
+    double halfLength = totalLength / 2;
+
+    Tangent? tangent;
+    double currentLen = 0;
+    for (var m in metrics) {
+      if (currentLen + m.length >= halfLength) {
+        tangent = m.getTangentForOffset(halfLength - currentLen);
+        break;
+      }
+      currentLen += m.length;
+    }
+
+    if (tangent == null) return;
+
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: TextStyle(
+          color: color,
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+          backgroundColor: Colors.white.withOpacity(0.8),
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    );
+    textPainter.layout();
+
+    // Centra il testo sul punto medio
+    final offset = Offset(
+      tangent.position.dx - textPainter.width / 2,
+      tangent.position.dy - textPainter.height / 2,
+    );
+
+    textPainter.paint(canvas, offset);
   }
 
   Path _createDashedPath(Path source, double dashWidth, double dashSpace) {

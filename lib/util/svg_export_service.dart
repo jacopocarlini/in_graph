@@ -38,10 +38,68 @@ class SvgExportService {
 
     final buffer = StringBuffer();
     buffer.write('<svg xmlns="http://www.w3.org/2000/svg" width="$width" height="$height" viewBox="0 0 $width $height">');
+
+    // Font Material Icons via @font-face per rendere le icone
+    buffer.write('<defs>');
+    buffer.write('<style>');
+    buffer.write('@font-face { font-family: "Material Icons"; font-style: normal; font-weight: 400; src: url(https://fonts.gstatic.com/s/materialicons/v142/flUhRq6tzZclQEJ-Vdg-IuiaDsNc.woff2) format("woff2"); }');
+    buffer.write('.material-icon { font-family: "Material Icons"; font-weight: normal; font-style: normal; font-size: 24px; display: inline-block; direction: ltr; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }');
+    buffer.write('</style>');
+    buffer.write('</defs>');
+
     buffer.write('<rect width="100%" height="100%" fill="white" />');
     buffer.write('<g transform="translate(${-offsetX}, ${-offsetY})">');
 
-    // 2. Disegna gli Edge (Archi)
+    // 2. Prima i container (sfondo)
+    for (final node in nodes.where((n) => n.isContainer && !n.isCollapsed)) {
+      _writeNodeSvg(buffer, node);
+    }
+
+    // 3. Disegna gli Edge (Archi) — sopra i container, sotto i nodi normali
+    _writeEdgesSvg(buffer, provider, aggregatedEdges, nodes);
+
+    // 4. Poi i nodi normali e i container collassati (in primo piano)
+    for (final node in nodes.where((n) => !n.isContainer || n.isCollapsed)) {
+      _writeNodeSvg(buffer, node);
+    }
+
+    buffer.write('</g>');
+    buffer.write('</svg>');
+
+    return buffer.toString();
+  }
+
+  static void _writeNodeSvg(StringBuffer buffer, GraphNode node) {
+    final colorHex = '#${node.color.value.toRadixString(16).padLeft(8, '0').substring(2)}';
+
+    // Box
+    buffer.write('<rect x="${node.position.dx}" y="${node.position.dy}" width="${node.size.width}" height="${node.size.height}" rx="16" ry="16" fill="white" stroke="$colorHex" stroke-width="1.5" ');
+    if (node.borderStyle == BorderStyleType.dashed) {
+      buffer.write('stroke-dasharray="5,3" ');
+    }
+    buffer.write('/>');
+
+    // Testo (nome nodo) — sempre centrato sotto il box
+    buffer.write('<text x="${node.position.dx + node.size.width / 2}" y="${node.position.dy + node.size.height + 20}" text-anchor="middle" font-family="sans-serif" font-size="13" font-weight="bold" fill="#222">${_escapeXml(node.name)}</text>');
+
+    // Icona Material Icons
+    if (node.icon != null) {
+      final iconChar = String.fromCharCode(node.icon!.codePoint);
+      final isExpandedContainer = node.isContainer && !node.isCollapsed;
+      final iconSize = isExpandedContainer ? 20.0 : 32.0;
+      final iconX = isExpandedContainer
+          ? node.position.dx + 12
+          : node.position.dx + node.size.width / 2;
+      final iconY = isExpandedContainer
+          ? node.position.dy + 12 + iconSize
+          : node.position.dy + node.size.height / 2 + iconSize / 2;
+
+      final anchor = isExpandedContainer ? 'start' : 'middle';
+      buffer.write('<text x="$iconX" y="$iconY" text-anchor="$anchor" font-family="Material Icons" font-size="$iconSize" fill="$colorHex">$iconChar</text>');
+    }
+  }
+
+  static void _writeEdgesSvg(StringBuffer buffer, GraphProvider provider, List<AggregatedEdge> aggregatedEdges, List<GraphNode> nodes) {
     final Map<String, List<String>> nodePorts = {};
     for (var edge in aggregatedEdges) {
       nodePorts.putIfAbsent(edge.sourceId, () => []).add(edge.id);
@@ -99,7 +157,7 @@ class SvgExportService {
       }
 
       final points = EdgeRoutingService.calculateOrthogonalPoints(virtualSRect, virtualTRect, obstacles: obstacles, laneOffset: laneOffset);
-      
+
       final colorHex = '#${edge.color.value.toRadixString(16).padLeft(8, '0').substring(2)}';
       final strokeWidth = edge.count > 1 ? 3 : 2;
 
@@ -112,45 +170,30 @@ class SvgExportService {
         buffer.write('stroke-dasharray="6,4" ');
       }
       buffer.write('/>');
-      
-      // Target Arrowhead (semplice triangolo)
+
+      // Target Arrowhead
       if (edge.showTargetArrow && points.length >= 2) {
         final p1 = points[points.length - 2];
         final p2 = points.last;
         final angle = atan2(p2.dy - p1.dy, p2.dx - p1.dx);
         buffer.write(_getArrowheadSvg(p2, angle, colorHex));
       }
-    }
 
-    // 3. Disegna i nodi
-    for (final node in nodes) {
-      final colorHex = '#${node.color.value.toRadixString(16).padLeft(8, '0').substring(2)}';
-      
-      // Box
-      buffer.write('<rect x="${node.position.dx}" y="${node.position.dy}" width="${node.size.width}" height="${node.size.height}" rx="16" ry="16" fill="white" stroke="$colorHex" stroke-width="1.5" ');
-      if (node.borderStyle == BorderStyleType.dashed) {
-        buffer.write('stroke-dasharray="5,3" ');
+      // Source Arrowhead
+      if (edge.showSourceArrow && points.length >= 2) {
+        final p1 = points[1];
+        final p2 = points.first;
+        final angle = atan2(p2.dy - p1.dy, p2.dx - p1.dx);
+        buffer.write(_getArrowheadSvg(p2, angle, colorHex));
       }
-      buffer.write('/>');
 
-      // Testo
-      final showTextBelow = !node.isContainer || node.isCollapsed;
-      if (showTextBelow) {
-        buffer.write('<text x="${node.position.dx + node.size.width / 2}" y="${node.position.dy + node.size.height + 20}" text-anchor="middle" font-family="sans-serif" font-size="13" font-weight="bold" fill="#222">${_escapeXml(node.name)}</text>');
-      } else {
-        buffer.write('<text x="${node.position.dx + 40}" y="${node.position.dy + 20}" text-anchor="start" font-family="sans-serif" font-size="13" font-weight="bold" fill="#222">${_escapeXml(node.name)}</text>');
+      // Edge Label
+      if (edge.label != null && edge.label!.isNotEmpty) {
+        final midPoint = _getPathMidpoint(points);
+        buffer.write('<rect x="${midPoint.dx - 2}" y="${midPoint.dy - 14}" width="${edge.label!.length * 7 + 4}" height="16" fill="white" opacity="0.85" rx="2"/>');
+        buffer.write('<text x="${midPoint.dx}" y="${midPoint.dy}" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="bold" fill="$colorHex">${_escapeXml(edge.label!)}</text>');
       }
-      
-      // Icon placeholder
-      final iconX = node.isContainer && !node.isCollapsed ? node.position.dx + 20 : node.position.dx + node.size.width / 2;
-      final iconY = node.isContainer && !node.isCollapsed ? node.position.dy + 20 : node.position.dy + node.size.height / 2;
-      buffer.write('<circle cx="$iconX" cy="$iconY" r="${node.isContainer && !node.isCollapsed ? 8 : 15}" fill="$colorHex" opacity="0.3" />');
     }
-
-    buffer.write('</g>');
-    buffer.write('</svg>');
-
-    return buffer.toString();
   }
 
   static String _getArrowheadSvg(Offset p, double angle, String color) {
@@ -160,6 +203,32 @@ class SvgExportService {
     final x2 = p.dx - size * cos(angle + pi / 6);
     final y2 = p.dy - size * sin(angle + pi / 6);
     return '<polygon points="${p.dx},${p.dy} $x1,$y1 $x2,$y2" fill="$color" />';
+  }
+
+  static Offset _getPathMidpoint(List<Offset> points) {
+    if (points.isEmpty) return Offset.zero;
+    if (points.length == 1) return points.first;
+
+    double totalLength = 0;
+    for (int i = 0; i < points.length - 1; i++) {
+      totalLength += (points[i + 1] - points[i]).distance;
+    }
+
+    double halfLength = totalLength / 2;
+    double currentLength = 0;
+
+    for (int i = 0; i < points.length - 1; i++) {
+      double segmentLength = (points[i + 1] - points[i]).distance;
+      if (currentLength + segmentLength >= halfLength) {
+        double t = (halfLength - currentLength) / segmentLength;
+        return Offset(
+          points[i].dx + (points[i + 1].dx - points[i].dx) * t,
+          points[i].dy + (points[i + 1].dy - points[i].dy) * t,
+        );
+      }
+      currentLength += segmentLength;
+    }
+    return points.last;
   }
 
   static String _escapeXml(String input) {

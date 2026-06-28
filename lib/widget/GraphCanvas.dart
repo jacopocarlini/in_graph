@@ -217,6 +217,8 @@ class _GraphCanvasState extends State<GraphCanvas>
   }
 
   KeyEventResult handleShortcut(node, event, GraphProvider provider) {
+    if (provider.isTextEdit) return KeyEventResult.ignored;
+
     if (event is KeyUpEvent) {
       if (event.logicalKey == LogicalKeyboardKey.space) {
         provider.setTool(ToolType.pointer);

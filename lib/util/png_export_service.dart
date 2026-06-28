@@ -59,11 +59,16 @@ class PngExportService {
     final paintBg = Paint()..color = Colors.white;
     canvas.drawRect(contentRect, paintBg);
 
-    // 3. Disegna gli Edges (Logica simile a EdgePainter)
+    // 3. Prima i container (sfondo)
+    for (final node in nodes.where((n) => n.isContainer && !n.isCollapsed)) {
+      _drawNode(canvas, node);
+    }
+
+    // 4. Poi gli Edges (sopra i container, sotto i nodi normali)
     _drawEdges(canvas, provider, edges, nodes);
 
-    // 4. Disegna i Nodi
-    for (final node in nodes) {
+    // 5. Infine i nodi normali (e i container collassati)
+    for (final node in nodes.where((n) => !n.isContainer || n.isCollapsed)) {
       _drawNode(canvas, node);
     }
 
@@ -144,10 +149,11 @@ class PngExportService {
       textAlign: showTextBelow ? TextAlign.center : TextAlign.left,
       textDirection: TextDirection.ltr,
     );
-    
+
     if (showTextBelow) {
       namePainter.layout(maxWidth: node.size.width + 60);
-      namePainter.paint(canvas, Offset(node.position.dx - 30, node.position.dy + node.size.height + 4));
+      var shift = (GraphNode.defaultNodeSize.width - namePainter.width)/2;
+      namePainter.paint(canvas, Offset(node.position.dx + shift, node.position.dy + node.size.height + 4));
     } else {
       namePainter.layout(maxWidth: node.size.width - 60);
       namePainter.paint(canvas, Offset(node.position.dx + 40, node.position.dy + 12));
@@ -235,7 +241,53 @@ class PngExportService {
 
       if (edge.showTargetArrow) _drawArrowhead(canvas, path, edge.color, atEnd: true);
       if (edge.showSourceArrow) _drawArrowhead(canvas, path, edge.color, atEnd: false);
+
+      // Label
+      if (edge.label != null && edge.label!.isNotEmpty) {
+        _drawEdgeLabel(canvas, path, edge.label!, edge.color);
+      }
     }
+  }
+
+  static void _drawEdgeLabel(Canvas canvas, Path path, String text, Color color) {
+    final metrics = path.computeMetrics().toList();
+    if (metrics.isEmpty) return;
+
+    double totalLength = metrics.fold(0.0, (sum, m) => sum + m.length);
+    double halfLength = totalLength / 2;
+
+    ui.Tangent? tangent;
+    double currentLen = 0;
+    for (var m in metrics) {
+      if (currentLen + m.length >= halfLength) {
+        tangent = m.getTangentForOffset(halfLength - currentLen);
+        break;
+      }
+      currentLen += m.length;
+    }
+
+    if (tangent == null) return;
+
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: TextStyle(
+          color: color,
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+          backgroundColor: Colors.white.withOpacity(0.8),
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    );
+    textPainter.layout();
+
+    final offset = Offset(
+      tangent.position.dx - textPainter.width / 2,
+      tangent.position.dy - textPainter.height / 2,
+    );
+
+    textPainter.paint(canvas, offset);
   }
 
   // --- Helper Methods (Copied from EdgePainter for independence) ---

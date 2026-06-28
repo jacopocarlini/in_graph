@@ -606,6 +606,23 @@ class GraphProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void updateEdgeLabel(String id, String label) {
+    final index = _edges.indexWhere((e) => e.id == id);
+    if (index != -1) {
+      _edges[index] = _edges[index].copyWith(label: label);
+    } else {
+      for (int i = 0; i < _edges.length; i++) {
+        final visibleSource = _getVisibleEndpoint(_edges[i].sourceId);
+        final visibleTarget = _getVisibleEndpoint(_edges[i].targetId);
+        final compositeKey = '$visibleSource-$visibleTarget';
+        if (compositeKey == id) {
+          _edges[i] = _edges[i].copyWith(label: label);
+        }
+      }
+    }
+    notifyListeners();
+  }
+
   void updateEdgeArrows(String id, {bool? showSource, bool? showTarget}) {
     final index = _edges.indexWhere((e) => e.id == id);
     if (index != -1) {
@@ -895,6 +912,7 @@ class GraphProvider extends ChangeNotifier {
           sourceId: existing.sourceId,
           targetId: existing.targetId,
           count: existing.count + 1,
+          label: existing.label, // Mantieni la label
           color: existing.color,
           borderStyle: existing.borderStyle,
           showSourceArrow: existing.showSourceArrow,
@@ -906,6 +924,7 @@ class GraphProvider extends ChangeNotifier {
           sourceId: visibleSource,
           targetId: visibleTarget,
           count: 1,
+          label: edge.label,
           color: edge.color,
           borderStyle: edge.borderStyle,
           showSourceArrow: edge.showSourceArrow,
