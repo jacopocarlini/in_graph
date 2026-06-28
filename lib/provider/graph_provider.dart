@@ -912,7 +912,8 @@ class GraphProvider extends ChangeNotifier {
           sourceId: existing.sourceId,
           targetId: existing.targetId,
           count: existing.count + 1,
-          label: existing.label, // Mantieni la label
+          label: existing.label,
+          // Mantieni la label
           color: existing.color,
           borderStyle: existing.borderStyle,
           showSourceArrow: existing.showSourceArrow,
@@ -985,6 +986,8 @@ class GraphProvider extends ChangeNotifier {
           targetId: targetNode.id,
         );
         edges.add(newEdge);
+        _selectedEdges.clear();
+        _selectedEdges.add(newEdge.id);
       } else {
         debugPrint("Connessione già esistente tra questi nodi!");
       }
