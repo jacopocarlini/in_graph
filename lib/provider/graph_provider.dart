@@ -957,8 +957,9 @@ class GraphProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void finishEdge(Offset position) {
-    if (_draftEdgeSourceId == null) return;
+  bool finishEdge(Offset position) {
+    bool message = false;
+    if (_draftEdgeSourceId == null) return message;
 
     GraphNode? targetNode;
     for (var node in nodes.reversed) {
@@ -997,13 +998,14 @@ class GraphProvider extends ChangeNotifier {
         _selectedEdges.clear();
         _selectedEdges.add(newEdge.id);
       } else {
-        debugPrint("Connessione già esistente tra questi nodi!");
+        message = true;
       }
     }
 
     _draftEdgeSourceId = null;
     _draftEdgeTarget = null;
     notifyListeners();
+    return message;
   }
 
   // ==========================================
@@ -1200,6 +1202,7 @@ class GraphProvider extends ChangeNotifier {
       final node = _hitTestNodes(position);
       if (node != null) {
         startEdge(node.id);
+        updateDraftEdge(position);
         _interactionMode = InteractionMode.creatingEdge;
       }
       return;
@@ -1273,9 +1276,10 @@ class GraphProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void handlePointerUp(Offset position) {
+  bool handlePointerUp(Offset position) {
+    bool message = false;
     if (_interactionMode == InteractionMode.creatingEdge) {
-      finishEdge(position);
+      message = finishEdge(position);
     } else if (_interactionMode == InteractionMode.draggingNode &&
         _interactingNodeId != null) {
       handleNodeDrop(_interactingNodeId!);
@@ -1290,6 +1294,7 @@ class GraphProvider extends ChangeNotifier {
     _interactingNodeId = null;
     _startPosition = null;
     notifyListeners();
+    return message;
   }
 
   void _applyResize(Offset rawDelta) {

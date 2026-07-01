@@ -5,6 +5,7 @@ import '../provider/graph_provider.dart';
 import '../util/azure_icon_catalog.dart';
 import 'azure_icon_picker_dialog.dart';
 import 'node_icon.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
 class PropertySidebar extends StatefulWidget {
   const PropertySidebar({Key? key}) : super(key: key);
@@ -625,7 +626,7 @@ Widget _buildNodeBorderSelector(GraphNode node, GraphProvider provider) {
             children: [
               _buildToggleOption(
                 "Solid",
-                Icons.maximize,
+                Icons.remove,
                 node.borderStyle == BorderStyleType.solid,
                 () => provider.updateNodeBorderStyle(
                   node.id,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:provider/provider.dart';
 import '../model/graph_models.dart';
 import '../provider/graph_provider.dart';
@@ -63,7 +64,7 @@ class EditorToolbar extends StatelessWidget {
                 ),
                 const VerticalDivider(width: 32, indent: 16, endIndent: 16),
                 _ToolButton(
-                  icon: Icons.travel_explore,
+                  icon: Symbols.graph_5,
                   label: 'Explorer',
                   shortcut: '6',
                   isActive: activeTool == ToolType.explorer,

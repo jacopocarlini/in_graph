@@ -2,6 +2,7 @@ import 'dart:math';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../model/graph_models.dart';
 import '../provider/graph_provider.dart';
 import 'edge_routing_service.dart';
@@ -32,7 +33,7 @@ class PngExportService {
       maxX = max(maxX, node.position.dx + node.size.width);
       maxY = max(maxY, node.position.dy + node.size.height);
     }
-    
+
     // Aggiungi spazio per il testo sotto i nodi
     maxY += 40;
 
@@ -59,9 +60,11 @@ class PngExportService {
     final paintBg = Paint()..color = Colors.white;
     canvas.drawRect(contentRect, paintBg);
 
+    final svgPictureCache = <String, PictureInfo?>{};
+
     // 3. Prima i container (sfondo)
     for (final node in nodes.where((n) => n.isContainer && !n.isCollapsed)) {
-      _drawNode(canvas, node);
+      await _drawNode(canvas, node, svgPictureCache);
     }
 
     // 4. Poi gli Edges (sopra i container, sotto i nodi normali)
@@ -69,21 +72,29 @@ class PngExportService {
 
     // 5. Infine i nodi normali (e i container collassati)
     for (final node in nodes.where((n) => !n.isContainer || n.isCollapsed)) {
-      _drawNode(canvas, node);
+      await _drawNode(canvas, node, svgPictureCache);
     }
 
     // 5. Genera l'immagine
     final picture = recorder.endRecording();
     final img = await picture.toImage(width.round(), height.round());
     final byteData = await img.toByteData(format: ui.ImageByteFormat.png);
-    
+
+    for (final info in svgPictureCache.values) {
+      info?.picture.dispose();
+    }
+
     img.dispose();
     picture.dispose();
 
     return byteData?.buffer.asUint8List();
   }
 
-  static void _drawNode(Canvas canvas, GraphNode node) {
+  static Future<void> _drawNode(
+    Canvas canvas,
+    GraphNode node,
+    Map<String, PictureInfo?> svgPictureCache,
+  ) async {
     final rect = Rect.fromLTWH(
       node.position.dx,
       node.position.dy,
@@ -95,7 +106,7 @@ class PngExportService {
     final paint = Paint()
       ..color = Colors.white
       ..style = PaintingStyle.fill;
-    
+
     final rrect = RRect.fromRectAndRadius(rect, const Radius.circular(16));
     canvas.drawRRect(rrect, paint);
 
@@ -106,34 +117,13 @@ class PngExportService {
       ..style = PaintingStyle.stroke;
 
     if (node.borderStyle == BorderStyleType.dashed) {
-       _drawDashedRRect(canvas, rrect, borderPaint);
+      _drawDashedRRect(canvas, rrect, borderPaint);
     } else {
-       canvas.drawRRect(rrect, borderPaint);
+      canvas.drawRRect(rrect, borderPaint);
     }
 
-    // Icon (Usiamo l'icona garantita dal modello)
-    final textPainter = TextPainter(
-      text: TextSpan(
-        text: String.fromCharCode(node.icon!.codePoint),
-        style: TextStyle(
-          fontSize: node.isContainer && !node.isCollapsed ? 20 : 32,
-          fontFamily: node.icon!.fontFamily,
-          package: node.icon!.fontPackage,
-          color: node.color,
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    );
-    textPainter.layout();
-
-    final iconX = node.isContainer && !node.isCollapsed
-        ? node.position.dx + 10
-        : node.position.dx + (node.size.width - textPainter.width) / 2;
-    final iconY = node.isContainer && !node.isCollapsed
-        ? node.position.dy + 10
-        : node.position.dy + (node.size.height - textPainter.height) / 2;
-
-    textPainter.paint(canvas, Offset(iconX, iconY));
+    // Icona del nodo (Material oppure SVG selezionata)
+    await _drawNodeIcon(canvas, node, svgPictureCache);
 
     // Text
     final showTextBelow = !node.isContainer || node.isCollapsed;
@@ -152,30 +142,142 @@ class PngExportService {
 
     if (showTextBelow) {
       namePainter.layout(maxWidth: node.size.width + 60);
-      var shift = (GraphNode.defaultNodeSize.width - namePainter.width)/2;
-      namePainter.paint(canvas, Offset(node.position.dx + shift, node.position.dy + node.size.height + 4));
+      var shift = (GraphNode.defaultNodeSize.width - namePainter.width) / 2;
+      namePainter.paint(
+        canvas,
+        Offset(
+          node.position.dx + shift,
+          node.position.dy + node.size.height + 4,
+        ),
+      );
     } else {
       namePainter.layout(maxWidth: node.size.width - 60);
-      namePainter.paint(canvas, Offset(node.position.dx + 40, node.position.dy + 12));
+      namePainter.paint(
+        canvas,
+        Offset(node.position.dx + 40, node.position.dy + 12),
+      );
     }
   }
 
-  static void _drawEdges(Canvas canvas, GraphProvider provider, List<AggregatedEdge> edges, List<GraphNode> visibleNodes) {
+  static Future<void> _drawNodeIcon(
+    Canvas canvas,
+    GraphNode node,
+    Map<String, PictureInfo?> svgPictureCache,
+  ) async {
+    final iconSize = node.isContainer && !node.isCollapsed ? 20.0 : 32.0;
+    final iconX = node.isContainer && !node.isCollapsed
+        ? node.position.dx + 10
+        : node.position.dx + (node.size.width - iconSize) / 2;
+    final iconY = node.isContainer && !node.isCollapsed
+        ? node.position.dy + 10
+        : node.position.dy + (node.size.height - iconSize) / 2;
+
+    final assetPath = node.iconAssetPath;
+    if (assetPath == null || assetPath.isEmpty) {
+      _drawMaterialIcon(canvas, node, iconX, iconY, iconSize);
+      return;
+    }
+
+    final cachedInfo = svgPictureCache.containsKey(assetPath)
+        ? svgPictureCache[assetPath]
+        : await _loadSvgPicture(assetPath, svgPictureCache);
+
+    if (cachedInfo == null ||
+        cachedInfo.size.width <= 0 ||
+        cachedInfo.size.height <= 0) {
+      _drawMaterialIcon(canvas, node, iconX, iconY, iconSize);
+      return;
+    }
+
+    final scaleX = iconSize / cachedInfo.size.width;
+    final scaleY = iconSize / cachedInfo.size.height;
+
+    canvas.save();
+    canvas.translate(iconX, iconY);
+    canvas.scale(scaleX, scaleY);
+    canvas.drawPicture(cachedInfo.picture);
+    canvas.restore();
+  }
+
+  static Future<PictureInfo?> _loadSvgPicture(
+    String path,
+    Map<String, PictureInfo?> cache,
+  ) async {
+    try {
+      final isNetwork =
+          path.startsWith('http://') || path.startsWith('https://');
+      final loader = isNetwork ? SvgNetworkLoader(path) : SvgAssetLoader(path);
+      final pictureInfo = await vg.loadPicture(loader, null);
+      cache[path] = pictureInfo;
+      return pictureInfo;
+    } catch (_) {
+      cache[path] = null;
+      return null;
+    }
+  }
+
+  static void _drawMaterialIcon(
+    Canvas canvas,
+    GraphNode node,
+    double iconX,
+    double iconY,
+    double iconSize,
+  ) {
+    final iconData =
+        node.icon ?? (node.isContainer ? Icons.folder : Icons.widgets);
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: String.fromCharCode(iconData.codePoint),
+        style: TextStyle(
+          fontSize: iconSize,
+          fontFamily: iconData.fontFamily,
+          package: iconData.fontPackage,
+          color: node.color,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    );
+    textPainter.layout();
+    textPainter.paint(canvas, Offset(iconX, iconY));
+  }
+
+  static void _drawEdges(
+    Canvas canvas,
+    GraphProvider provider,
+    List<AggregatedEdge> edges,
+    List<GraphNode> visibleNodes,
+  ) {
     final Map<String, List<String>> nodePorts = {};
 
     for (var edge in edges) {
-        nodePorts.putIfAbsent(edge.sourceId, () => []).add(edge.id);
-        nodePorts.putIfAbsent(edge.targetId, () => []).add(edge.id);
+      nodePorts.putIfAbsent(edge.sourceId, () => []).add(edge.id);
+      nodePorts.putIfAbsent(edge.targetId, () => []).add(edge.id);
     }
 
     for (var edge in edges) {
-      final source = visibleNodes.firstWhere((n) => n.id == edge.sourceId, orElse: () => visibleNodes.first);
-      final target = visibleNodes.firstWhere((n) => n.id == edge.targetId, orElse: () => visibleNodes.first);
+      final source = visibleNodes.firstWhere(
+        (n) => n.id == edge.sourceId,
+        orElse: () => visibleNodes.first,
+      );
+      final target = visibleNodes.firstWhere(
+        (n) => n.id == edge.targetId,
+        orElse: () => visibleNodes.first,
+      );
 
       if (source.id == target.id) continue;
 
-      final sRect = Rect.fromLTWH(source.position.dx, source.position.dy, source.size.width, source.size.height);
-      final tRect = Rect.fromLTWH(target.position.dx, target.position.dy, target.size.width, target.size.height);
+      final sRect = Rect.fromLTWH(
+        source.position.dx,
+        source.position.dy,
+        source.size.width,
+        source.size.height,
+      );
+      final tRect = Rect.fromLTWH(
+        target.position.dx,
+        target.position.dy,
+        target.size.width,
+        target.size.height,
+      );
 
       final sourceIndex = nodePorts[source.id]!.indexOf(edge.id);
       final sourceTotal = nodePorts[source.id]!.length;
@@ -191,20 +293,32 @@ class PngExportService {
 
       if (dx.abs() > dy.abs()) {
         if (sourceTotal > 1) {
-          final step = ((source.size.height * 0.7) / (sourceTotal - 1)).clamp(minStep, 25.0);
+          final step = ((source.size.height * 0.7) / (sourceTotal - 1)).clamp(
+            minStep,
+            25.0,
+          );
           sOffset = Offset(0, (sourceIndex - (sourceTotal - 1) / 2) * step);
         }
         if (targetTotal > 1) {
-          final step = ((target.size.height * 0.7) / (targetTotal - 1)).clamp(minStep, 25.0);
+          final step = ((target.size.height * 0.7) / (targetTotal - 1)).clamp(
+            minStep,
+            25.0,
+          );
           tOffset = Offset(0, (targetIndex - (targetTotal - 1) / 2) * step);
         }
       } else {
         if (sourceTotal > 1) {
-          final step = ((source.size.width * 0.7) / (sourceTotal - 1)).clamp(minStep, 25.0);
+          final step = ((source.size.width * 0.7) / (sourceTotal - 1)).clamp(
+            minStep,
+            25.0,
+          );
           sOffset = Offset((sourceIndex - (sourceTotal - 1) / 2) * step, 0);
         }
         if (targetTotal > 1) {
-          final step = ((target.size.width * 0.7) / (targetTotal - 1)).clamp(minStep, 25.0);
+          final step = ((target.size.width * 0.7) / (targetTotal - 1)).clamp(
+            minStep,
+            25.0,
+          );
           tOffset = Offset((targetIndex - (targetTotal - 1) / 2) * step, 0);
         }
       }
@@ -217,12 +331,27 @@ class PngExportService {
       List<Rect> obstacles = [];
       for (var node in visibleNodes) {
         if (node.id == source.id || node.id == target.id) continue;
-        if (node.isContainer && (provider.isAncestor(node.id, source.id) || provider.isAncestor(node.id, target.id))) continue;
-        obstacles.add(Rect.fromLTWH(node.position.dx, node.position.dy, node.size.width, node.size.height));
+        if (node.isContainer &&
+            (provider.isAncestor(node.id, source.id) ||
+                provider.isAncestor(node.id, target.id)))
+          continue;
+        obstacles.add(
+          Rect.fromLTWH(
+            node.position.dx,
+            node.position.dy,
+            node.size.width,
+            node.size.height,
+          ),
+        );
       }
 
-      Path path = EdgeRoutingService.calculateOrthogonalPath(virtualSRect, virtualTRect, obstacles: obstacles, laneOffset: laneOffset);
-      
+      Path path = EdgeRoutingService.calculateOrthogonalPath(
+        virtualSRect,
+        virtualTRect,
+        obstacles: obstacles,
+        laneOffset: laneOffset,
+      );
+
       // Shorten path
       path = _shortenPathToRect(path, tRect);
       path = _shortenPathFromSource(path, sRect);
@@ -239,8 +368,10 @@ class PngExportService {
         canvas.drawPath(path, paint);
       }
 
-      if (edge.showTargetArrow) _drawArrowhead(canvas, path, edge.color, atEnd: true);
-      if (edge.showSourceArrow) _drawArrowhead(canvas, path, edge.color, atEnd: false);
+      if (edge.showTargetArrow)
+        _drawArrowhead(canvas, path, edge.color, atEnd: true);
+      if (edge.showSourceArrow)
+        _drawArrowhead(canvas, path, edge.color, atEnd: false);
 
       // Label
       if (edge.label != null && edge.label!.isNotEmpty) {
@@ -249,7 +380,12 @@ class PngExportService {
     }
   }
 
-  static void _drawEdgeLabel(Canvas canvas, Path path, String text, Color color) {
+  static void _drawEdgeLabel(
+    Canvas canvas,
+    Path path,
+    String text,
+    Color color,
+  ) {
     final metrics = path.computeMetrics().toList();
     if (metrics.isEmpty) return;
 
@@ -298,26 +434,41 @@ class PngExportService {
     for (final ui.PathMetric metric in path.computeMetrics()) {
       double distance = 0.0;
       while (distance < metric.length) {
-        dashedPath.addPath(metric.extractPath(distance, distance + 5.0), Offset.zero);
+        dashedPath.addPath(
+          metric.extractPath(distance, distance + 5.0),
+          Offset.zero,
+        );
         distance += 5.0 + 3.0;
       }
     }
     canvas.drawPath(dashedPath, paint);
   }
 
-  static Path _createDashedPath(Path source, double dashWidth, double dashSpace) {
+  static Path _createDashedPath(
+    Path source,
+    double dashWidth,
+    double dashSpace,
+  ) {
     final Path dashedPath = Path();
     for (final ui.PathMetric metric in source.computeMetrics()) {
       double distance = 0.0;
       while (distance < metric.length) {
-        dashedPath.addPath(metric.extractPath(distance, distance + dashWidth), Offset.zero);
+        dashedPath.addPath(
+          metric.extractPath(distance, distance + dashWidth),
+          Offset.zero,
+        );
         distance += dashWidth + dashSpace;
       }
     }
     return dashedPath;
   }
 
-  static void _drawArrowhead(Canvas canvas, Path path, Color color, {bool atEnd = true}) {
+  static void _drawArrowhead(
+    Canvas canvas,
+    Path path,
+    Color color, {
+    bool atEnd = true,
+  }) {
     final metrics = path.computeMetrics().toList();
     if (metrics.isEmpty) return;
     final metric = atEnd ? metrics.last : metrics.first;
@@ -330,10 +481,21 @@ class PngExportService {
     const arrowSize = 12.0;
     final arrowPath = Path()
       ..moveTo(tangent.position.dx, tangent.position.dy)
-      ..lineTo(tangent.position.dx - arrowSize * cos(angle - pi / 6), tangent.position.dy - arrowSize * sin(angle - pi / 6))
-      ..lineTo(tangent.position.dx - arrowSize * cos(angle + pi / 6), tangent.position.dy - arrowSize * sin(angle + pi / 6))
+      ..lineTo(
+        tangent.position.dx - arrowSize * cos(angle - pi / 6),
+        tangent.position.dy - arrowSize * sin(angle - pi / 6),
+      )
+      ..lineTo(
+        tangent.position.dx - arrowSize * cos(angle + pi / 6),
+        tangent.position.dy - arrowSize * sin(angle + pi / 6),
+      )
       ..close();
-    canvas.drawPath(arrowPath, Paint()..color = color..style = PaintingStyle.fill);
+    canvas.drawPath(
+      arrowPath,
+      Paint()
+        ..color = color
+        ..style = PaintingStyle.fill,
+    );
   }
 
   static Path _shortenPathToRect(Path originalPath, Rect targetRect) {
@@ -341,16 +503,25 @@ class PngExportService {
     if (metrics.isEmpty) return originalPath;
     final lastMetric = metrics.last;
     final endTangent = lastMetric.getTangentForOffset(lastMetric.length);
-    if (endTangent == null || !targetRect.contains(endTangent.position)) return originalPath;
+    if (endTangent == null || !targetRect.contains(endTangent.position))
+      return originalPath;
     double low = 0, high = lastMetric.length, targetOffset = lastMetric.length;
     for (int i = 0; i < 12; i++) {
       double mid = (low + high) / 2;
       final tangent = lastMetric.getTangentForOffset(mid);
-      if (tangent != null && targetRect.contains(tangent.position)) { high = mid; targetOffset = mid; } else { low = mid; }
+      if (tangent != null && targetRect.contains(tangent.position)) {
+        high = mid;
+        targetOffset = mid;
+      } else {
+        low = mid;
+      }
     }
     final newPath = Path();
     for (int i = 0; i < metrics.length - 1; i++) {
-      newPath.addPath(metrics[i].extractPath(0, metrics[i].length), Offset.zero);
+      newPath.addPath(
+        metrics[i].extractPath(0, metrics[i].length),
+        Offset.zero,
+      );
     }
     newPath.addPath(lastMetric.extractPath(0, targetOffset), Offset.zero);
     return newPath;
@@ -361,17 +532,29 @@ class PngExportService {
     if (metrics.isEmpty) return originalPath;
     final firstMetric = metrics.first;
     final startTangent = firstMetric.getTangentForOffset(0);
-    if (startTangent == null || !sourceRect.contains(startTangent.position)) return originalPath;
+    if (startTangent == null || !sourceRect.contains(startTangent.position))
+      return originalPath;
     double low = 0, high = firstMetric.length, targetOffset = 0;
     for (int i = 0; i < 12; i++) {
       double mid = (low + high) / 2;
       final tangent = firstMetric.getTangentForOffset(mid);
-      if (tangent != null && sourceRect.contains(tangent.position)) { low = mid; } else { high = mid; targetOffset = mid; }
+      if (tangent != null && sourceRect.contains(tangent.position)) {
+        low = mid;
+      } else {
+        high = mid;
+        targetOffset = mid;
+      }
     }
     final newPath = Path();
-    newPath.addPath(firstMetric.extractPath(targetOffset, firstMetric.length), Offset.zero);
+    newPath.addPath(
+      firstMetric.extractPath(targetOffset, firstMetric.length),
+      Offset.zero,
+    );
     for (int i = 1; i < metrics.length; i++) {
-      newPath.addPath(metrics[i].extractPath(0, metrics[i].length), Offset.zero);
+      newPath.addPath(
+        metrics[i].extractPath(0, metrics[i].length),
+        Offset.zero,
+      );
     }
     return newPath;
   }

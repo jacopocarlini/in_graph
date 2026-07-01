@@ -152,8 +152,17 @@ class _GraphCanvasState extends State<GraphCanvas>
                             event.localPosition,
                             event.localDelta,
                           ),
-                          onPointerUp: (event) =>
-                              provider.handlePointerUp(event.localPosition),
+                          onPointerUp: (event) {
+                            var message = provider.handlePointerUp(event.localPosition);
+                            if (message){
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('The edge already exists'),
+                                  duration: Duration(seconds: 2),
+                                ),
+                              );
+                            }
+                          },
                           onPointerHover: (event) =>
                               provider.updateCurrentPosition(event.localPosition),
                           child: MouseRegion(
