@@ -84,10 +84,31 @@ class _PropertySidebarState extends State<PropertySidebar> {
 
   Widget _buildEdgeSidebar(GraphProvider provider, String edgeId) {
     final aggregatedEdges = provider.getAggregatedEdges();
-    final GraphEdge edge = aggregatedEdges.cast<GraphEdge>().firstWhere(
-      (e) => e.id == edgeId,
-      orElse: () => provider.edges.firstWhere((e) => e.id == edgeId),
-    );
+    
+    GraphEdge? edge;
+    try {
+      // Cerchiamo prima tra quelli aggregati (quelli visibili a video)
+      edge = aggregatedEdges.firstWhere((e) => e.id == edgeId);
+    } catch (_) {
+      try {
+        // Poi tra quelli reali (nel caso fosse un riferimento diretto)
+        edge = provider.edges.firstWhere((e) => e.id == edgeId);
+      } catch (_) {
+        edge = null;
+      }
+    }
+
+    if (edge == null) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(16.0),
+          child: Text(
+            "Seleziona un elemento",
+            style: TextStyle(color: Colors.grey),
+          ),
+        ),
+      );
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -264,30 +285,41 @@ Widget _buildNodeColorSelector(GraphNode node, GraphProvider provider) {
         "Color",
         style: TextStyle(color: Colors.black54, fontSize: 13),
       ),
-      const Spacer(),
-      ...colors.map((color) {
-        final isSelected = node.color.value == color.value;
-        return GestureDetector(
-          onTap: () => provider.updateNodeColor(node.id, color),
-          child: Container(
-            margin: const EdgeInsets.only(left: 6),
-            width: 22,
-            height: 22,
-            decoration: BoxDecoration(
-              color: color,
-              shape: BoxShape.circle,
-              border: isSelected
-                  ? Border.all(color: Colors.blue, width: 2)
-                  : Border.all(color: Colors.grey.shade300, width: 1),
-            ),
-            child: isSelected
-                ? const Center(
-                    child: Icon(Icons.check, size: 12, color: Colors.white),
-                  )
-                : null,
+      const SizedBox(width: 8),
+      // Use Expanded + Wrap to avoid RenderFlex overflow on small widths.
+      Expanded(
+        child: Align(
+          alignment: Alignment.centerRight,
+          child: Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            alignment: WrapAlignment.end,
+            children: colors.map((color) {
+              final isSelected = node.color.value == color.value;
+              return GestureDetector(
+                onTap: () => provider.updateNodeColor(node.id, color),
+                child: Container(
+                  // margin not needed because Wrap handles spacing
+                  width: 22,
+                  height: 22,
+                  decoration: BoxDecoration(
+                    color: color,
+                    shape: BoxShape.circle,
+                    border: isSelected
+                        ? Border.all(color: Colors.blue, width: 2)
+                        : Border.all(color: Colors.grey.shade300, width: 1),
+                  ),
+                  child: isSelected
+                      ? const Center(
+                          child: Icon(Icons.check, size: 12, color: Colors.white),
+                        )
+                      : null,
+                ),
+              );
+            }).toList(),
           ),
-        );
-      }).toList(),
+        ),
+      ),
     ],
   );
 }
@@ -307,30 +339,39 @@ Widget _buildEdgeColorSelector(GraphEdge edge, GraphProvider provider) {
         "Color",
         style: TextStyle(color: Colors.black54, fontSize: 13),
       ),
-      const Spacer(),
-      ...colors.map((color) {
-        final isSelected = edge.color.value == color.value;
-        return GestureDetector(
-          onTap: () => provider.updateEdgeColor(edge.id, color),
-          child: Container(
-            margin: const EdgeInsets.only(left: 6),
-            width: 22,
-            height: 22,
-            decoration: BoxDecoration(
-              color: color,
-              shape: BoxShape.circle,
-              border: isSelected
-                  ? Border.all(color: Colors.blue, width: 2)
-                  : Border.all(color: Colors.grey.shade300, width: 1),
-            ),
-            child: isSelected
-                ? const Center(
-                    child: Icon(Icons.check, size: 12, color: Colors.white),
-                  )
-                : null,
+      const SizedBox(width: 8),
+      Expanded(
+        child: Align(
+          alignment: Alignment.centerRight,
+          child: Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            alignment: WrapAlignment.end,
+            children: colors.map((color) {
+              final isSelected = edge.color.value == color.value;
+              return GestureDetector(
+                onTap: () => provider.updateEdgeColor(edge.id, color),
+                child: Container(
+                  width: 22,
+                  height: 22,
+                  decoration: BoxDecoration(
+                    color: color,
+                    shape: BoxShape.circle,
+                    border: isSelected
+                        ? Border.all(color: Colors.blue, width: 2)
+                        : Border.all(color: Colors.grey.shade300, width: 1),
+                  ),
+                  child: isSelected
+                      ? const Center(
+                          child: Icon(Icons.check, size: 12, color: Colors.white),
+                        )
+                      : null,
+                ),
+              );
+            }).toList(),
           ),
-        );
-      }).toList(),
+        ),
+      ),
     ],
   );
 }
@@ -342,19 +383,29 @@ Widget _buildNodeBorderSelector(GraphNode node, GraphProvider provider) {
         "Border",
         style: TextStyle(color: Colors.black54, fontSize: 13),
       ),
-      const Spacer(),
-      _buildToggleOption(
-        "Solid",
-        Icons.maximize,
-        node.borderStyle == BorderStyleType.solid,
-        () => provider.updateNodeBorderStyle(node.id, BorderStyleType.solid),
-      ),
       const SizedBox(width: 8),
-      _buildToggleOption(
-        "Dashed",
-        Icons.more_horiz,
-        node.borderStyle == BorderStyleType.dashed,
-        () => provider.updateNodeBorderStyle(node.id, BorderStyleType.dashed),
+      Expanded(
+        child: Align(
+          alignment: Alignment.centerRight,
+          child: Wrap(
+            spacing: 8,
+            alignment: WrapAlignment.end,
+            children: [
+              _buildToggleOption(
+                "Solid",
+                Icons.maximize,
+                node.borderStyle == BorderStyleType.solid,
+                () => provider.updateNodeBorderStyle(node.id, BorderStyleType.solid),
+              ),
+              _buildToggleOption(
+                "Dashed",
+                Icons.more_horiz,
+                node.borderStyle == BorderStyleType.dashed,
+                () => provider.updateNodeBorderStyle(node.id, BorderStyleType.dashed),
+              ),
+            ],
+          ),
+        ),
       ),
     ],
   );
@@ -367,19 +418,29 @@ Widget _buildEdgeBorderSelector(GraphEdge edge, GraphProvider provider) {
         "Style",
         style: TextStyle(color: Colors.black54, fontSize: 13),
       ),
-      const Spacer(),
-      _buildToggleOption(
-        "Solid",
-        Icons.maximize,
-        edge.borderStyle == BorderStyleType.solid,
-        () => provider.updateEdgeBorderStyle(edge.id, BorderStyleType.solid),
-      ),
       const SizedBox(width: 8),
-      _buildToggleOption(
-        "Dashed",
-        Icons.more_horiz,
-        edge.borderStyle == BorderStyleType.dashed,
-        () => provider.updateEdgeBorderStyle(edge.id, BorderStyleType.dashed),
+      Expanded(
+        child: Align(
+          alignment: Alignment.centerRight,
+          child: Wrap(
+            spacing: 8,
+            alignment: WrapAlignment.end,
+            children: [
+              _buildToggleOption(
+                "Solid",
+                Icons.maximize,
+                edge.borderStyle == BorderStyleType.solid,
+                () => provider.updateEdgeBorderStyle(edge.id, BorderStyleType.solid),
+              ),
+              _buildToggleOption(
+                "Dashed",
+                Icons.more_horiz,
+                edge.borderStyle == BorderStyleType.dashed,
+                () => provider.updateEdgeBorderStyle(edge.id, BorderStyleType.dashed),
+              ),
+            ],
+          ),
+        ),
       ),
     ],
   );
@@ -392,26 +453,36 @@ Widget _buildArrowheadsSelector(GraphEdge edge, GraphProvider provider) {
         "Heads",
         style: TextStyle(color: Colors.black54, fontSize: 13),
       ),
-      const Spacer(),
-      _buildToggleOption(
-        "Source",
-        Icons.west,
-        edge.showSourceArrow,
-        () => provider.updateEdgeArrows(
-          edge.id,
-          showSource: !edge.showSourceArrow,
-          showTarget: edge.showTargetArrow,
-        ),
-      ),
       const SizedBox(width: 8),
-      _buildToggleOption(
-        "Target",
-        Icons.east,
-        edge.showTargetArrow,
-        () => provider.updateEdgeArrows(
-          edge.id,
-          showSource: edge.showSourceArrow,
-          showTarget: !edge.showTargetArrow,
+      Expanded(
+        child: Align(
+          alignment: Alignment.centerRight,
+          child: Wrap(
+            spacing: 8,
+            alignment: WrapAlignment.end,
+            children: [
+              _buildToggleOption(
+                "Source",
+                Icons.west,
+                edge.showSourceArrow,
+                () => provider.updateEdgeArrows(
+                  edge.id,
+                  showSource: !edge.showSourceArrow,
+                  showTarget: edge.showTargetArrow,
+                ),
+              ),
+              _buildToggleOption(
+                "Target",
+                Icons.east,
+                edge.showTargetArrow,
+                () => provider.updateEdgeArrows(
+                  edge.id,
+                  showSource: edge.showSourceArrow,
+                  showTarget: !edge.showTargetArrow,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     ],
