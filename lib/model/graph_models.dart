@@ -16,6 +16,7 @@ class GraphNode {
   final bool isCollapsed;
   final bool isContainer;
   final IconData? icon;
+  final String? iconAssetPath;
   final Color color;
   final BorderStyleType borderStyle;
 
@@ -36,6 +37,7 @@ class GraphNode {
     this.isCollapsed = false,
     this.isContainer = false,
     IconData? icon,
+    this.iconAssetPath,
     this.color = Colors.grey,
     this.borderStyle = BorderStyleType.solid,
   }) : icon = icon ?? (isContainer ? Icons.folder : Icons.widgets);
@@ -50,11 +52,13 @@ class GraphNode {
     bool? isCollapsed,
     bool? isContainer,
     IconData? icon,
+    String? iconAssetPath,
     Color? color,
     BorderStyleType? borderStyle,
     Map<String, dynamic>? metadata,
     bool clearParent = false,
     bool clearIcon = false,
+    bool clearIconAsset = false,
   }) {
     return GraphNode(
       id: id,
@@ -66,6 +70,9 @@ class GraphNode {
       isCollapsed: isCollapsed ?? this.isCollapsed,
       isContainer: isContainer ?? this.isContainer,
       icon: clearIcon ? null : (icon ?? this.icon),
+      iconAssetPath: clearIconAsset
+          ? null
+          : (iconAssetPath ?? this.iconAssetPath),
       color: color ?? this.color,
       borderStyle: borderStyle ?? this.borderStyle,
     );
@@ -77,11 +84,20 @@ class GraphNode {
       'name': name,
       'position': {'dx': position.dx, 'dy': position.dy},
       'size': {'width': size.width, 'height': size.height},
-      'oldSize': oldSize != null ? {'width': oldSize!.width, 'height': oldSize!.height} : null,
+      'oldSize': oldSize != null
+          ? {'width': oldSize!.width, 'height': oldSize!.height}
+          : null,
       'parentId': parentId,
       'isCollapsed': isCollapsed,
       'isContainer': isContainer,
-      'icon': icon != null ? {'codePoint': icon!.codePoint, 'fontFamily': icon!.fontFamily, 'fontPackage': icon!.fontPackage} : null,
+      'icon': icon != null
+          ? {
+              'codePoint': icon!.codePoint,
+              'fontFamily': icon!.fontFamily,
+              'fontPackage': icon!.fontPackage,
+            }
+          : null,
+      'iconAssetPath': iconAssetPath,
       'color': color.value,
       'borderStyle': borderStyle.name,
     };
@@ -91,15 +107,38 @@ class GraphNode {
     return GraphNode(
       id: map['id'],
       name: map['name'],
-      position: Offset((map['position']['dx'] as num).toDouble(), (map['position']['dy'] as num).toDouble()),
-      size: Size((map['size']['width'] as num).toDouble(), (map['size']['height'] as num).toDouble()),
-      oldSize: map['oldSize'] != null ? Size((map['oldSize']['width'] as num).toDouble(), (map['oldSize']['height'] as num).toDouble()) : null,
+      position: Offset(
+        (map['position']['dx'] as num).toDouble(),
+        (map['position']['dy'] as num).toDouble(),
+      ),
+      size: Size(
+        (map['size']['width'] as num).toDouble(),
+        (map['size']['height'] as num).toDouble(),
+      ),
+      oldSize: map['oldSize'] != null
+          ? Size(
+              (map['oldSize']['width'] as num).toDouble(),
+              (map['oldSize']['height'] as num).toDouble(),
+            )
+          : null,
       parentId: map['parentId'],
       isCollapsed: map['isCollapsed'] ?? false,
       isContainer: map['isContainer'] ?? false,
-      icon: map['icon'] != null ? IconData(map['icon']['codePoint'] as int, fontFamily: map['icon']['fontFamily'] as String?, fontPackage: map['icon']['fontPackage'] as String?) : null,
+      icon: map['icon'] != null
+          ? IconData(
+              map['icon']['codePoint'] as int,
+              fontFamily: map['icon']['fontFamily'] as String?,
+              fontPackage: map['icon']['fontPackage'] as String?,
+            )
+          : null,
+      iconAssetPath: map['iconAssetPath'] as String?,
       color: map['color'] != null ? Color(map['color'] as int) : Colors.grey,
-      borderStyle: map['borderStyle'] != null ? BorderStyleType.values.firstWhere((e) => e.name == map['borderStyle'], orElse: () => BorderStyleType.solid) : BorderStyleType.solid,
+      borderStyle: map['borderStyle'] != null
+          ? BorderStyleType.values.firstWhere(
+              (e) => e.name == map['borderStyle'],
+              orElse: () => BorderStyleType.solid,
+            )
+          : BorderStyleType.solid,
     );
   }
 }
@@ -164,8 +203,15 @@ class GraphEdge {
       sourceId: map['sourceId'],
       targetId: map['targetId'],
       label: map['label'],
-      color: map['color'] != null ? Color(map['color'] as int) : Colors.blueGrey,
-      borderStyle: map['borderStyle'] != null ? BorderStyleType.values.firstWhere((e) => e.name == map['borderStyle'], orElse: () => BorderStyleType.solid) : BorderStyleType.solid,
+      color: map['color'] != null
+          ? Color(map['color'] as int)
+          : Colors.blueGrey,
+      borderStyle: map['borderStyle'] != null
+          ? BorderStyleType.values.firstWhere(
+              (e) => e.name == map['borderStyle'],
+              orElse: () => BorderStyleType.solid,
+            )
+          : BorderStyleType.solid,
       showSourceArrow: map['showSourceArrow'] ?? false,
       showTargetArrow: map['showTargetArrow'] ?? true,
     );

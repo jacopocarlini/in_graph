@@ -542,12 +542,20 @@ class GraphProvider extends ChangeNotifier {
     }
   }
 
-  void updateNodeIcon(String id, IconData? icon) {
+  void updateNodeIcon(
+    String id, {
+    IconData? icon,
+    String? iconAssetPath,
+    bool clearIcon = false,
+    bool clearIconAsset = false,
+  }) {
     final index = _nodes.indexWhere((n) => n.id == id);
     if (index != -1) {
       _nodes[index] = _nodes[index].copyWith(
         icon: icon,
-        clearIcon: icon == null,
+        iconAssetPath: iconAssetPath,
+        clearIcon: clearIcon,
+        clearIconAsset: clearIconAsset,
       );
       notifyListeners();
     }

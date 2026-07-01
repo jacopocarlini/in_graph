@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../model/graph_models.dart';
 import '../provider/graph_provider.dart';
+import 'node_icon.dart';
 
 class GraphTreeSidebar extends StatefulWidget {
   const GraphTreeSidebar({Key? key}) : super(key: key);
@@ -177,17 +178,17 @@ class _GraphTreeSidebarState extends State<GraphTreeSidebar> {
                     width: 22,
                   ), // Spazio vuoto compensativo per i nodi normali senza freccia
                 // Icona del tipo di nodo (Cartella/Widget)
-                Icon(
-                  node.icon ??
+                NodeIcon(
+                  materialIcon:
+                      node.icon ??
                       (node.isContainer
                           ? (node.isCollapsed
                                 ? Icons.folder_rounded
                                 : Icons.folder_open_rounded)
                           : Icons.widgets_outlined),
+                  iconAssetPath: node.iconAssetPath,
                   size: 18,
-                  color: isSelected
-                      ? Colors.blue
-                      : (node.icon != null ? node.color : Colors.grey.shade600),
+                  color: isSelected ? Colors.blue : node.color,
                 ),
                 const SizedBox(width: 8),
 

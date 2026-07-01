@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../model/graph_models.dart';
 import '../provider/graph_provider.dart';
+import '../util/azure_icon_catalog.dart';
+import 'azure_icon_picker_dialog.dart';
+import 'node_icon.dart';
 
 class PropertySidebar extends StatefulWidget {
   const PropertySidebar({Key? key}) : super(key: key);
@@ -84,7 +87,7 @@ class _PropertySidebarState extends State<PropertySidebar> {
 
   Widget _buildEdgeSidebar(GraphProvider provider, String edgeId) {
     final aggregatedEdges = provider.getAggregatedEdges();
-    
+
     GraphEdge? edge;
     try {
       // Cerchiamo prima tra quelli aggregati (quelli visibili a video)
@@ -228,46 +231,267 @@ Widget _buildSectionTitle(String title) {
 }
 
 Widget _buildIconSelector(GraphNode node, GraphProvider provider) {
-  final icons = {
-    "Default": node.isContainer ? Icons.folder : Icons.widgets,
-    "Function": Icons.flash_on,
-    "Database": Icons.storage,
-    "Cloud": Icons.cloud,
-    "User": Icons.person,
-    "Settings": Icons.settings,
-  };
-
-  final currentIcon = node.icon;
-  final bool iconExists = icons.values.contains(currentIcon);
-
-  return Container(
-    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-    decoration: BoxDecoration(
-      border: Border.all(color: Colors.grey.shade300),
-      borderRadius: BorderRadius.circular(8),
-    ),
-    child: DropdownButtonHideUnderline(
-      child: DropdownButton<IconData?>(
-        value: iconExists ? currentIcon : icons.values.first,
-        isExpanded: true,
-        items: icons.entries.map((e) {
-          return DropdownMenuItem<IconData?>(
-            value: e.value,
-            child: Row(
-              children: [
-                Icon(e.value, size: 20, color: Colors.blue),
-                const SizedBox(width: 12),
-                Text(e.key),
-              ],
-            ),
-          );
-        }).toList(),
-        onChanged: (val) {
-          provider.updateNodeIcon(node.id, val);
-        },
-      ),
-    ),
+  return _NodeIconSelector(
+    key: ValueKey('${node.id}-${node.iconAssetPath}-${node.icon?.codePoint}'),
+    node: node,
+    provider: provider,
   );
+}
+
+class _NodeIconSelector extends StatefulWidget {
+  final GraphNode node;
+  final GraphProvider provider;
+
+  const _NodeIconSelector({
+    Key? key,
+    required this.node,
+    required this.provider,
+  }) : super(key: key);
+
+  @override
+  State<_NodeIconSelector> createState() => _NodeIconSelectorState();
+}
+
+class _NodeIconSelectorState extends State<_NodeIconSelector> {
+  final List<NodeIconSelection> _options = [];
+  bool _isLoadingLocal = true;
+  bool _isLoadingDrawio = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadOptions();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoadingLocal && _options.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 8),
+        child: LinearProgressIndicator(minHeight: 2),
+      );
+    }
+
+    final current = _findCurrentOption(_options);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Autocomplete<NodeIconSelection>(
+                initialValue: TextEditingValue(text: current?.label ?? ''),
+                displayStringForOption: (o) => o.label,
+                optionsBuilder: (textEditingValue) {
+                  final query = textEditingValue.text.trim().toLowerCase();
+                  final selectedLabel = (current?.label ?? '').toLowerCase();
+                  if (query.isEmpty || query == selectedLabel) {
+                    return _options.take(120);
+                  }
+
+                  return _options
+                      .where((o) => o.searchText.contains(query))
+                      .take(250);
+                },
+                onSelected: _applySelection,
+                fieldViewBuilder:
+                    (context, textEditingController, focusNode, onSubmitted) {
+                      return TextField(
+                        controller: textEditingController,
+                        focusNode: focusNode,
+                        decoration: InputDecoration(
+                          labelText: 'Icon',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(color: Colors.grey.shade300),
+                          ),
+                          prefixIcon: Padding(
+                            padding: const EdgeInsets.all(10),
+                            child: NodeIcon(
+                              materialIcon:
+                                  current?.materialIcon ?? widget.node.icon,
+                              iconAssetPath:
+                                  current?.assetPath ??
+                                  widget.node.iconAssetPath,
+                              color: widget.node.color,
+                              size: 18,
+                            ),
+                          ),
+                          suffixIcon: const Icon(Icons.expand_more),
+                        ),
+                      );
+                    },
+                optionsViewBuilder: (context, onSelected, options) {
+                  final list = options.toList(growable: false);
+                  return Align(
+                    alignment: Alignment.topLeft,
+                    child: Material(
+                      elevation: 6,
+                      borderRadius: BorderRadius.circular(8),
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(
+                          maxHeight: 320,
+                          maxWidth: 520,
+                        ),
+                        child: ListView.builder(
+                          padding: EdgeInsets.zero,
+                          itemCount: list.length,
+                          itemBuilder: (context, index) {
+                            final item = list[index];
+                            return ListTile(
+                              dense: true,
+                              leading: _menuLeadingIcon(item),
+                              title: Text(
+                                item.label,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              onTap: () => onSelected(item),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+        if (_isLoadingDrawio)
+          const Padding(
+            padding: EdgeInsets.only(top: 6),
+            child: LinearProgressIndicator(minHeight: 2),
+          ),
+      ],
+    );
+  }
+
+  Future<void> _loadOptions() async {
+    final defaults = <NodeIconSelection>[
+      NodeIconSelection(
+        materialIcon: widget.node.isContainer ? Icons.folder : Icons.widgets,
+        label: 'Default',
+        searchText: 'default material',
+      ),
+      const NodeIconSelection(
+        materialIcon: Icons.flash_on,
+        label: 'Function',
+        searchText: 'function material',
+      ),
+      const NodeIconSelection(
+        materialIcon: Icons.storage,
+        label: 'Database',
+        searchText: 'database material',
+      ),
+      const NodeIconSelection(
+        materialIcon: Icons.cloud,
+        label: 'Cloud',
+        searchText: 'cloud material',
+      ),
+      const NodeIconSelection(
+        materialIcon: Icons.person,
+        label: 'User',
+        searchText: 'user material',
+      ),
+      const NodeIconSelection(
+        materialIcon: Icons.settings,
+        label: 'Settings',
+        searchText: 'settings material',
+      ),
+    ];
+
+    final localSvgAssets = await SvgAssetIconCatalog.load();
+    final localSvgOptions = localSvgAssets
+        .map(
+          (icon) => NodeIconSelection(
+            assetPath: icon.assetPath,
+            label: '${icon.name} (${icon.category})',
+            searchText: icon.searchText,
+          ),
+        )
+        .toList(growable: false);
+
+    if (!mounted) return;
+    setState(() {
+      _options
+        ..clear()
+        ..addAll([...defaults, ...localSvgOptions]);
+      _isLoadingLocal = false;
+      _isLoadingDrawio = true;
+    });
+
+    try {
+      final drawioAssets = await SvgAssetIconCatalog.loadDrawio();
+      if (!mounted) return;
+
+      final existing = _options.map((o) => o.assetPath).toSet();
+      final drawioOptions = drawioAssets
+          .where((icon) => !existing.contains(icon.assetPath))
+          .map(
+            (icon) => NodeIconSelection(
+              assetPath: icon.assetPath,
+              label: '${icon.name} (${icon.category})',
+              searchText: icon.searchText,
+            ),
+          )
+          .toList(growable: false);
+
+      setState(() {
+        _options.addAll(drawioOptions);
+        _isLoadingDrawio = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _isLoadingDrawio = false);
+    }
+  }
+
+  void _applySelection(NodeIconSelection selected) {
+    if (selected.assetPath != null) {
+      widget.provider.updateNodeIcon(
+        widget.node.id,
+        iconAssetPath: selected.assetPath,
+      );
+    } else {
+      widget.provider.updateNodeIcon(
+        widget.node.id,
+        icon: selected.materialIcon,
+        clearIconAsset: true,
+      );
+    }
+  }
+
+  Widget _menuLeadingIcon(NodeIconSelection item) {
+    return NodeIcon(
+      materialIcon: item.materialIcon,
+      iconAssetPath: item.assetPath,
+      color: widget.node.color,
+      size: 18,
+    );
+  }
+
+  NodeIconSelection? _findCurrentOption(List<NodeIconSelection> options) {
+    if (widget.node.iconAssetPath != null) {
+      return options.firstWhere(
+        (o) => o.assetPath == widget.node.iconAssetPath,
+        orElse: () => options.first,
+      );
+    }
+
+    return options.firstWhere(
+      (o) =>
+          o.assetPath == null &&
+          o.materialIcon?.codePoint == widget.node.icon?.codePoint &&
+          o.materialIcon?.fontFamily == widget.node.icon?.fontFamily &&
+          o.materialIcon?.fontPackage == widget.node.icon?.fontPackage,
+      orElse: () => options.first,
+    );
+  }
 }
 
 Widget _buildNodeColorSelector(GraphNode node, GraphProvider provider) {
@@ -311,7 +535,11 @@ Widget _buildNodeColorSelector(GraphNode node, GraphProvider provider) {
                   ),
                   child: isSelected
                       ? const Center(
-                          child: Icon(Icons.check, size: 12, color: Colors.white),
+                          child: Icon(
+                            Icons.check,
+                            size: 12,
+                            color: Colors.white,
+                          ),
                         )
                       : null,
                 ),
@@ -363,7 +591,11 @@ Widget _buildEdgeColorSelector(GraphEdge edge, GraphProvider provider) {
                   ),
                   child: isSelected
                       ? const Center(
-                          child: Icon(Icons.check, size: 12, color: Colors.white),
+                          child: Icon(
+                            Icons.check,
+                            size: 12,
+                            color: Colors.white,
+                          ),
                         )
                       : null,
                 ),
@@ -395,13 +627,19 @@ Widget _buildNodeBorderSelector(GraphNode node, GraphProvider provider) {
                 "Solid",
                 Icons.maximize,
                 node.borderStyle == BorderStyleType.solid,
-                () => provider.updateNodeBorderStyle(node.id, BorderStyleType.solid),
+                () => provider.updateNodeBorderStyle(
+                  node.id,
+                  BorderStyleType.solid,
+                ),
               ),
               _buildToggleOption(
                 "Dashed",
                 Icons.more_horiz,
                 node.borderStyle == BorderStyleType.dashed,
-                () => provider.updateNodeBorderStyle(node.id, BorderStyleType.dashed),
+                () => provider.updateNodeBorderStyle(
+                  node.id,
+                  BorderStyleType.dashed,
+                ),
               ),
             ],
           ),
@@ -430,13 +668,19 @@ Widget _buildEdgeBorderSelector(GraphEdge edge, GraphProvider provider) {
                 "Solid",
                 Icons.maximize,
                 edge.borderStyle == BorderStyleType.solid,
-                () => provider.updateEdgeBorderStyle(edge.id, BorderStyleType.solid),
+                () => provider.updateEdgeBorderStyle(
+                  edge.id,
+                  BorderStyleType.solid,
+                ),
               ),
               _buildToggleOption(
                 "Dashed",
                 Icons.more_horiz,
                 edge.borderStyle == BorderStyleType.dashed,
-                () => provider.updateEdgeBorderStyle(edge.id, BorderStyleType.dashed),
+                () => provider.updateEdgeBorderStyle(
+                  edge.id,
+                  BorderStyleType.dashed,
+                ),
               ),
             ],
           ),
@@ -631,8 +875,10 @@ Widget _buildLayeringList(GraphProvider provider) {
                 ),
               ),
               // Icona del nodo a destra (rimossa l'icona di trascinamento duplicata)
-              Icon(
-                n.icon ?? (n.isContainer ? Icons.folder : Icons.widgets),
+              NodeIcon(
+                materialIcon:
+                    n.icon ?? (n.isContainer ? Icons.folder : Icons.widgets),
+                iconAssetPath: n.iconAssetPath,
                 size: 16,
                 color: n.color,
               ),

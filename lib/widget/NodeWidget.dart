@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../model/graph_models.dart';
 import '../provider/graph_provider.dart';
+import 'node_icon.dart';
 
 class NodeWidget extends StatefulWidget {
   final GraphNode node;
@@ -324,8 +325,9 @@ class _NodeWidgetState extends State<NodeWidget> {
               ),
               const SizedBox(width: 4),
 
-              Icon(
-                node.icon!,
+              NodeIcon(
+                materialIcon: node.icon,
+                iconAssetPath: node.iconAssetPath,
                 size: 20,
                 color: node.color,
               ),
@@ -366,8 +368,9 @@ class _NodeWidgetState extends State<NodeWidget> {
       children: [
         // Icona principale al centro del box
         Center(
-          child: Icon(
-            node.icon!,
+          child: NodeIcon(
+            materialIcon: node.icon,
+            iconAssetPath: node.iconAssetPath,
             size: 32,
             color: node.color,
           ),
