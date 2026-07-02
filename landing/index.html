@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>InGraph - Modern Graph Editor</title>
+    <meta name="description" content="InGraph is the modern, fast, and intuitive graph editor for visualizing your ideas. Try it for free right now in our web app.">
+    <meta name="keywords" content="graph, editor, data visualization, in_graph, flutter, webapp">
+
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://jacopocarlini.github.io/in_graph/">
+    <meta property="og:title" content="InGraph - Modern Graph Editor">
+    <meta property="og:description" content="Create, edit, and visualize graphs simply and quickly with InGraph.">
+    <meta property="og:image" content="https://jacopocarlini.github.io/in_graph/favicon.png">
+
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="https://jacopocarlini.github.io/in_graph/">
+    <meta property="twitter:title" content="InGraph - Modern Graph Editor">
+    <meta property="twitter:description" content="Create, edit, and visualize graphs simply and quickly with InGraph.">
+
+    <link rel="icon" type="image/png" href="favicon.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --google-blue: #1a73e8;
+            --google-blue-dark: #174ea6;
+            --text-dark: #202124;
+            --text-medium: #5f6368;
+            --bg-light: #f8f9fa;
+            --white: #ffffff;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            margin: 0;
+            padding: 0;
+            color: var(--text-dark);
+            line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 40px;
+            position: sticky;
+            top: 0;
+            background: var(--white);
+            z-index: 1000;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .logo {
+            font-size: 22px;
+            font-weight: 500;
+            color: var(--text-dark);
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+        }
+
+        .logo span {
+            color: var(--google-blue);
+            font-weight: 700;
+        }
+
+        nav a {
+            margin-left: 32px;
+            text-decoration: none;
+            color: var(--text-medium);
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+
+        nav a:hover {
+            color: var(--google-blue);
+        }
+
+        .cta-button {
+            background-color: var(--google-blue);
+            color: var(--white);
+            padding: 10px 24px;
+            border-radius: 4px;
+            text-decoration: none;
+            font-weight: 500;
+            transition: background-color 0.2s, box-shadow 0.2s;
+            box-shadow: 0 1px 2px 0 rgba(60,64,67,0.30), 0 1px 3px 1px rgba(60,64,67,0.15);
+        }
+
+        .cta-button:hover {
+            background-color: var(--google-blue-dark);
+            box-shadow: 0 1px 3px 0 rgba(60,64,67,0.30), 0 4px 8px 3px rgba(60,64,67,0.15);
+        }
+
+        .hero {
+            padding: 120px 20px;
+            text-align: center;
+            background-color: var(--white);
+        }
+
+        .hero h1 {
+            font-size: 56px;
+            font-weight: 700;
+            margin-bottom: 24px;
+            letter-spacing: -1px;
+            color: var(--text-dark);
+        }
+
+        .hero p {
+            font-size: 20px;
+            color: var(--text-medium);
+            max-width: 700px;
+            margin: 0 auto 40px;
+            font-weight: 300;
+        }
+
+        .features-section {
+            background-color: var(--bg-light);
+            padding: 100px 20px;
+        }
+
+        .features-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 40px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .feature-card {
+            text-align: center;
+            padding: 32px;
+            background: var(--white);
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+            transition: transform 0.2s;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-4px);
+        }
+
+        .feature-card h3 {
+            font-size: 24px;
+            font-weight: 500;
+            margin-bottom: 16px;
+            color: var(--google-blue);
+        }
+
+        .feature-card p {
+            color: var(--text-medium);
+            font-size: 16px;
+        }
+
+        footer {
+            padding: 60px 40px;
+            text-align: center;
+            color: var(--text-medium);
+            font-size: 14px;
+            background-color: var(--white);
+            border-top: 1px solid #e0e0e0;
+        }
+
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 36px;
+            }
+            header {
+                padding: 16px 20px;
+            }
+            nav {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+<header>
+    <a href="#" class="logo">In<span>Graph</span></a>
+    <nav>
+        <a href="#features">Features</a>
+        <a href="https://github.com/jacopocarlini/in_graph" target="_blank">GitHub</a>
+        <a href="/in_graph/app/" class="cta-button">Open Webapp</a>
+    </nav>
+</header>
+
+<main>
+    <section class="hero">
+        <h1>Visualize your ideas with precision.</h1>
+        <p>The modern tool to create graphs, diagrams, and logic schemas directly in your browser. Simple, fast, and free.</p>
+        <a href="/in_graph/app/" class="cta-button" style="font-size: 18px; padding: 14px 32px;">Get started</a>
+    </section>
+
+    <section id="features" class="features-section">
+        <div class="features-container">
+            <div class="feature-card">
+                <h3>Intuitive Interface</h3>
+                <p>Designed to be simple to use right from the start. Drag, connect, and customize your nodes effortlessly.</p>
+            </div>
+            <div class="feature-card">
+                <h3>Cloud Speed</h3>
+                <p>No installation required. Access your projects from any device thanks to the power of Flutter Web.</p>
+            </div>
+            <div class="feature-card">
+                <h3>Open Source</h3>
+                <p>Transparent and collaborative. InGraph is built with modern technologies and is open to community contributions.</p>
+            </div>
+        </div>
+    </section>
+</main>
+
+<footer>
+    &copy; 2026 InGraph. Created with passion by Jacopo Carlini.
+</footer>
+</body>
+</html>

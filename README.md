@@ -1,29 +1,75 @@
-# in_graph
+# InGraph - Modern Graph Editor
 
-A new Flutter project.
+**InGraph** is a modern, fast, and intuitive graph editor designed to help you visualize your ideas with precision. Create diagrams, logic schemas, and complex graphs directly in your browser.
 
-## Getting Started
+[Try the Web App](https://jacopocarlini.github.io/in_graph/app/) | [Landing Page](https://jacopocarlini.github.io/in_graph/)
 
-This project is a starting point for a Flutter application.
+![InGraph Banner](landing/favicon.png) <!-- Replace with a real banner if available -->
 
-A few resources to get you started if this is your first Flutter project:
+## ✨ Features
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+- **Intuitive Interface**: Drag-and-drop nodes, effortless connections, and deep customization.
+- **Cloud Speed**: No installation required. Access your projects from any device thanks to the power of Flutter Web.
+- **Open Source**: Built with transparency and community collaboration in mind.
+- **Dynamic Assets**: Supports a wide range of SVG icons (Azure, AWS, etc.) for technical diagrams.
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## 🚀 Getting Started
 
-## SVG icon assets
+### Prerequisites
 
-Le icone SVG vengono caricate in modo generico da tutti i path sotto `assets/`.
+- [Flutter SDK](https://docs.flutter.dev/get-started/install) (Stable channel)
 
-Quando aggiungi nuove SVG (Azure, AWS o altri provider), aggiorna automaticamente
-`pubspec.yaml` con:
+### Installation
 
-```zsh
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/jacopocarlini/in_graph.git
+   cd in_graph
+   ```
+2. Get dependencies:
+   ```bash
+   flutter pub get
+   ```
+3. Run the app:
+   ```bash
+   flutter run -d chrome
+   ```
+
+## 🎨 Asset Management
+
+### SVG Icons
+SVG icons are loaded dynamically from `assets/`. When adding new SVG icons (e.g., Azure or AWS sets), update the `pubspec.yaml` automatically using the provided tool:
+
+```bash
 dart run tool/sync_svg_assets.dart
 flutter pub get
 ```
 
+## 🛠 Build Instructions
+
+To build the web application for production (e.g., for GitHub Pages):
+
+```bash
+flutter build web --base-href /in_graph/ --no-tree-shake-icons
+```
+
+> **Note**: The `--no-tree-shake-icons` flag is required because the project handles some icons dynamically at runtime.
+
+## 🛠 Tech Stack
+
+- **Framework**: [Flutter](https://flutter.dev/) (Web)
+- **Language**: [Dart](https://dart.dev/)
+- **State Management**: [Provider](https://pub.dev/packages/provider)
+
+## 🤝 Contributing
+
+Contributions are welcome! If you'd like to improve InGraph, feel free to fork the repo and create a pull request.
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 👨‍💻 Author
+
+Created with passion by **Jacopo Carlini**.
+- GitHub: [@jacopocarlini](https://github.com/jacopocarlini)

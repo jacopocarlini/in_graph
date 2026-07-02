@@ -38,7 +38,15 @@ jobs:
           cache: true
 
       - name: Build 🔧
-        run: flutter build web --base-href /in_graph/
+        run: |
+          flutter build web --base-href /in_graph/app/ --no-tree-shake-icons
+          mkdir -p build/web/app
+          # Move all files and directories into 'app' folder, excluding 'app' itself
+          find build/web -mindepth 1 -maxdepth 1 ! -name 'app' -exec mv {} build/web/app/ \;
+          # Copy landing page files to root
+          cp -r landing/* build/web/
+          # Copy favicon to root for landing page
+          cp build/web/app/favicon.png build/web/favicon.png || true
 
       - name: Setup Pages ⚙️
         uses: actions/configure-pages@b8130d9ab958b325bbde9786d62f2c97a9885a0e # v3
