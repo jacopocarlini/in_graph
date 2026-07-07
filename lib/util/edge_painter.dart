@@ -3,7 +3,6 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../provider/graph_provider.dart';
 import '../model/graph_models.dart';
-import 'edge_routing_service.dart';
 
 class EdgePainter extends CustomPainter {
   final GraphProvider provider;
@@ -38,109 +37,32 @@ class EdgePainter extends CustomPainter {
 
       if (source == null || target == null || source.id == target.id) continue;
 
-      final sRect = Rect.fromLTWH(
-        source.position.dx,
-        source.position.dy,
-        source.size.width,
-        source.size.height,
-      );
       final tRect = Rect.fromLTWH(
         target.position.dx,
         target.position.dy,
         target.size.width,
         target.size.height,
       );
-
-      // Calcoliamo l'indice dello slot unico per questo edge su entrambi i nodi
-      final sourceIndex = nodePorts[source.id]!.indexOf(edge.id);
-      final sourceTotal = nodePorts[source.id]!.length;
-
-      final targetIndex = nodePorts[target.id]!.indexOf(edge.id);
-      final targetTotal = nodePorts[target.id]!.length;
-
-      // Capiamo la direzione per lo sdoppiamento
-      final dx = tRect.center.dx - sRect.center.dx;
-      final dy = tRect.center.dy - sRect.center.dy;
-
-      Offset sOffset = Offset.zero;
-      Offset tOffset = Offset.zero;
-
-      // Aumentiamo lo 'step' minimo a 20 per dare più respiro tra le frecce
-      const double minStep = 20.0;
-
-      if (dx.abs() > dy.abs()) {
-        if (sourceTotal > 1) {
-          final step = ((source.size.height * 0.7) / (sourceTotal - 1)).clamp(
-            minStep,
-            25.0,
-          );
-          sOffset = Offset(0, (sourceIndex - (sourceTotal - 1) / 2) * step);
-        }
-        if (targetTotal > 1) {
-          final step = ((target.size.height * 0.7) / (targetTotal - 1)).clamp(
-            minStep,
-            25.0,
-          );
-          tOffset = Offset(0, (targetIndex - (targetTotal - 1) / 2) * step);
-        }
-      } else {
-        if (sourceTotal > 1) {
-          final step = ((source.size.width * 0.7) / (sourceTotal - 1)).clamp(
-            minStep,
-            25.0,
-          );
-          sOffset = Offset((sourceIndex - (sourceTotal - 1) / 2) * step, 0);
-        }
-        if (targetTotal > 1) {
-          final step = ((target.size.width * 0.7) / (targetTotal - 1)).clamp(
-            minStep,
-            25.0,
-          );
-          tOffset = Offset((targetIndex - (targetTotal - 1) / 2) * step, 0);
-        }
-      }
-
-      // Spostiamo i punti di aggancio
-      final virtualSRect = sRect.shift(sOffset);
-      final virtualTRect = tRect.shift(tOffset);
-
-      final int globalIndex = aggregatedEdges.indexOf(edge);
-      // Aumentiamo il laneOffset a 20 per distanziare i percorsi ortogonali
-      final double laneOffset = (globalIndex % 6) * 20.0;
-
-      // === OSTACOLI: Usiamo solo i nodi VISIBILI ===
-      List<Rect> obstacles = [];
-      for (var node in provider.visibleNodes) {
-        if (node.id == source.id || node.id == target.id) continue;
-
-        // Se il nodo è un container che contiene la sorgente o il target,
-        // NON deve essere un ostacolo (la freccia deve poterci passare dentro)
-        if (node.isContainer &&
-            (provider.isAncestor(node.id, source.id) ||
-                provider.isAncestor(node.id, target.id))) {
-          continue;
-        }
-
-        obstacles.add(
-          Rect.fromLTWH(
-            node.position.dx,
-            node.position.dy,
-            node.size.width,
-            node.size.height,
-          ),
-        );
-      }
-
-      Path path = EdgeRoutingService.calculateOrthogonalPath(
-        virtualSRect,
-        virtualTRect,
-        obstacles: obstacles,
-        laneOffset: laneOffset,
+      final sRect = Rect.fromLTWH(
+        source.position.dx,
+        source.position.dy,
+        source.size.width,
+        source.size.height,
       );
 
+      final List<Offset> points = provider.getEdgePath(edge);
+      if (points.isEmpty) continue;
+
+      var routedPath = Path()..moveTo(points.first.dx, points.first.dy);
+      for (int i = 1; i < points.length; i++) {
+        routedPath.lineTo(points[i].dx, points[i].dy);
+      }
+
       // --- Taglio al millimetro ---
-      path = _shortenPathToRect(path, tRect);
-      path = _shortenPathFromSource(path, sRect);
+      final finalEdgePath = _cutPathFromSource(
+        _cutPathToRect(routedPath, tRect),
+        sRect,
+      );
 
       final isAggregated = edge.count > 1;
       final isSelected = provider.selectedEdgeIds.contains(edge.id);
@@ -156,7 +78,7 @@ class EdgePainter extends CustomPainter {
           ..strokeCap = StrokeCap.round;
 
         // Disegniamo l'alone azzurro sotto
-        canvas.drawPath(path, selectionGlowPaint);
+        canvas.drawPath(finalEdgePath, selectionGlowPaint);
       }
 
       // --- 2. DISEGNO FRECCIA REALE ---
@@ -178,22 +100,22 @@ class EdgePainter extends CustomPainter {
         ..strokeCap = StrokeCap.round;
 
       if (edge.borderStyle == BorderStyleType.dashed) {
-        canvas.drawPath(_createDashedPath(path, 6.0, 4.0), currentPaint);
+        canvas.drawPath(_createDashedPath(finalEdgePath, 6.0, 4.0), currentPaint);
       } else {
-        canvas.drawPath(path, currentPaint);
+        canvas.drawPath(finalEdgePath, currentPaint);
       }
 
       // --- 3. DISEGNO PUNTE ---
       if (edge.showTargetArrow) {
-        _drawArrowhead(canvas, path, arrowColor, atEnd: true);
+        _drawArrowhead(canvas, finalEdgePath, arrowColor, atEnd: true);
       }
       if (edge.showSourceArrow) {
-        _drawArrowhead(canvas, path, arrowColor, atEnd: false);
+        _drawArrowhead(canvas, finalEdgePath, arrowColor, atEnd: false);
       }
 
       // --- 4. DISEGNO LABEL ---
       if (edge.label != null && edge.label!.isNotEmpty) {
-        _drawEdgeLabel(canvas, path, edge.label!, arrowColor);
+        _drawEdgeLabel(canvas, finalEdgePath, edge.label!, arrowColor);
       }
     }
 
@@ -222,7 +144,7 @@ class EdgePainter extends CustomPainter {
         ..lineTo(temp.currentPosition.dx, temp.currentPosition.dy);
 
       // --- Tagliamo il ghost path alla partenza dal bordo del nodo sorgente ---
-      ghostPath = _shortenPathFromSource(ghostPath, sRect);
+      ghostPath = _cutPathFromSource(ghostPath, sRect);
 
       final ghostPaint = Paint()
         ..color = Colors.blue.withOpacity(0.6)
@@ -235,7 +157,7 @@ class EdgePainter extends CustomPainter {
   }
 
   /// Taglia il path esattamente sul perimetro del Rect di destinazione
-  Path _shortenPathToRect(Path originalPath, Rect targetRect) {
+  Path _cutPathToRect(Path originalPath, Rect targetRect) {
     final metrics = originalPath.computeMetrics().toList();
     if (metrics.isEmpty) return originalPath;
 
@@ -275,7 +197,7 @@ class EdgePainter extends CustomPainter {
   }
 
   /// Taglia il path iniziale partendo dal perimetro del Rect sorgente.
-  Path _shortenPathFromSource(Path originalPath, Rect sourceRect) {
+  Path _cutPathFromSource(Path originalPath, Rect sourceRect) {
     final metrics = originalPath.computeMetrics().toList();
     if (metrics.isEmpty) return originalPath;
 

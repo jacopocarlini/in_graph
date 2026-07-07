@@ -162,14 +162,6 @@ class _ExportImportMenu extends StatelessWidget {
             dense: true,
           ),
         ),
-        const PopupMenuItem(
-          value: 'export_svg',
-          child: ListTile(
-            leading: Icon(Icons.code),
-            title: Text('Esporta SVG'),
-            dense: true,
-          ),
-        ),
       ],
     );
   }
