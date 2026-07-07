@@ -20,6 +20,7 @@ class GraphProvider extends ChangeNotifier {
   InteractionMode _interactionMode = InteractionMode.idle;
 
   final List<GraphNode> _nodes = [];
+  Map<String, GraphNode> _nodesMap = {};
   final List<GraphEdge> _edges = [];
 
   ToolType _activeTool = ToolType.pointer;
@@ -72,6 +73,8 @@ class GraphProvider extends ChangeNotifier {
 
   List<GraphNode> get nodes => _nodes;
 
+  Map<String, GraphNode> get nodesMap => _nodesMap;
+
   List<GraphEdge> get edges => _edges;
 
   ToolType get activeTool => _activeTool;
@@ -122,6 +125,7 @@ class GraphProvider extends ChangeNotifier {
   }
 
   void updateCurrentPosition(Offset position) {
+    if (_currentPosition == position) return;
     _currentPosition = position;
     _updateHoverState(position);
   }
@@ -137,9 +141,8 @@ class GraphProvider extends ChangeNotifier {
     } else if (_hoveredNodeId != null) {
       _hoveredNodeId = null;
       notifyListeners();
-    } else {
-      notifyListeners();
     }
+    // Rimosso il notifyListeners() incondizionato nel ramo else
   }
 
   // ==========================================
@@ -236,7 +239,11 @@ class GraphProvider extends ChangeNotifier {
     if (_selectionNodes.isEmpty && _selectedEdges.isEmpty) return;
 
     // 1. Rimuovi i nodi selezionati
-    _nodes.removeWhere((node) => _selectionNodes.contains(node.id));
+    final deletedNodeIds = _selectionNodes.toSet();
+    _nodes.removeWhere((node) => deletedNodeIds.contains(node.id));
+    for (var id in deletedNodeIds) {
+      _nodesMap.remove(id);
+    }
 
     // 2. Rimuovi gli edge reali partendo dalla mappatura di quelli aggregati selezionati
     _edges.removeWhere((edge) {
@@ -265,6 +272,7 @@ class GraphProvider extends ChangeNotifier {
     _nodes.clear();
     _edges.clear();
     _nodes.addAll(newNodes);
+    _nodesMap = {for (var n in _nodes) n.id: n};
     _edges.addAll(newEdges);
     _selectionNodes.clear();
     _selectedEdges.clear();
@@ -304,6 +312,7 @@ class GraphProvider extends ChangeNotifier {
 
   void addNode(GraphNode node) {
     _nodes.add(node);
+    _nodesMap[node.id] = node;
     _invalidateCache();
     notifyListeners();
   }
@@ -312,6 +321,7 @@ class GraphProvider extends ChangeNotifier {
     final index = _nodes.indexWhere((n) => n.id == id);
     if (index != -1) {
       _nodes[index] = _nodes[index].copyWith(name: name);
+      _nodesMap[id] = _nodes[index];
       notifyListeners();
     }
   }
@@ -331,6 +341,7 @@ class GraphProvider extends ChangeNotifier {
         clearIcon: clearIcon,
         clearIconAsset: clearIconAsset,
       );
+      _nodesMap[id] = _nodes[index];
       notifyListeners();
     }
   }
@@ -339,6 +350,7 @@ class GraphProvider extends ChangeNotifier {
     final index = _nodes.indexWhere((n) => n.id == id);
     if (index != -1) {
       _nodes[index] = _nodes[index].copyWith(color: color);
+      _nodesMap[id] = _nodes[index];
       notifyListeners();
     }
   }
@@ -347,6 +359,7 @@ class GraphProvider extends ChangeNotifier {
     final index = _nodes.indexWhere((n) => n.id == id);
     if (index != -1) {
       _nodes[index] = _nodes[index].copyWith(borderStyle: borderStyle);
+      _nodesMap[id] = _nodes[index];
       notifyListeners();
     }
   }
@@ -432,6 +445,7 @@ class GraphProvider extends ChangeNotifier {
       final height = newSize.height < 100 ? 100.0 : newSize.height;
 
       _nodes[index] = _nodes[index].copyWith(size: Size(width, height));
+      _nodesMap[id] = _nodes[index];
       _invalidateCache(pathsOnly: true);
       notifyListeners();
     }
@@ -457,10 +471,12 @@ class GraphProvider extends ChangeNotifier {
     // Lista di supporto per spostare i nodi in movimento in fondo all'array
     List<GraphNode> movedNodes = [];
 
-    for (var node in _nodes) {
+    for (int i = 0; i < _nodes.length; i++) {
+      final node = _nodes[i];
       if (allIdsToMove.contains(node.id)) {
-        node.position += delta;
-        movedNodes.add(node);
+        _nodes[i] = node.copyWith(position: node.position + delta);
+        _nodesMap[node.id] = _nodes[i];
+        movedNodes.add(_nodes[i]);
       }
     }
 
@@ -604,6 +620,7 @@ class GraphProvider extends ChangeNotifier {
         oldSize: _nodes[index].size,
         isCollapsed: !_nodes[index].isCollapsed,
       );
+      _nodesMap[nodeId] = _nodes[index];
       _invalidateCache();
       notifyListeners();
     }
@@ -1043,6 +1060,7 @@ class GraphProvider extends ChangeNotifier {
     newHeight = newHeight < minHeight ? minHeight : newHeight;
 
     _nodes[index] = node.copyWith(size: Size(newWidth, newHeight), position: Offset(newX, newY));
+    _nodesMap[_interactingNodeId!] = _nodes[index];
     _invalidateCache(pathsOnly: true);
     _bringOverlappingNodesToFront(_interactingNodeId!);
     notifyListeners();
@@ -1102,8 +1120,10 @@ class GraphProvider extends ChangeNotifier {
 
       if (newParentId != null) {
         _nodes[i] = node.copyWith(parentId: newParentId);
+        _nodesMap[node.id] = _nodes[i];
       } else {
         _nodes[i] = node.copyWith(clearParent: true);
+        _nodesMap[node.id] = _nodes[i];
       }
     }
     _enforceParentChildZOrder();
