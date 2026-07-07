@@ -10,6 +10,28 @@ import 'NodeWidget.dart';
 import '../util/edge_painter.dart';
 import 'PropertySidebar.dart';
 
+class NodeWidgetById extends StatelessWidget {
+  final String id;
+  const NodeWidgetById({Key? key, required this.id}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Selector<GraphProvider, GraphNode?>(
+      selector: (_, p) => p.nodesMap[id],
+      builder: (context, node, _) {
+        if (node == null) return const SizedBox.shrink();
+        return NodeWidget(
+          node: node,
+          onTapOut: () {
+            // Risaliamo al focus del canvas se clicchiamo fuori dal testo
+            FocusScope.of(context).requestFocus();
+          },
+        );
+      },
+    );
+  }
+}
+
 class GraphCanvas extends StatefulWidget {
   const GraphCanvas({super.key});
 
@@ -24,9 +46,9 @@ class _GraphCanvasState extends State<GraphCanvas>
   final FocusNode _canvasFocusNode = FocusNode();
   AnimationController? _animationController;
 
-  Offset? localPosition;
+  final ValueNotifier<int> _zoomNotifier = ValueNotifier<int>(100);
 
-  int _zoom = 100;
+  Offset? localPosition;
 
   @override
   void initState() {
@@ -50,15 +72,13 @@ class _GraphCanvasState extends State<GraphCanvas>
   }
 
   void _handleTransformChanged() {
-    setState(() {
-      final Matrix4 matrix = _transformController.value;
-      final double scale = sqrt(
-        matrix.entry(0, 0) * matrix.entry(0, 0) +
-            matrix.entry(1, 0) * matrix.entry(1, 0),
-      );
-      double percentage = scale * 100;
-      _zoom = percentage.toInt();
-    });
+    final Matrix4 matrix = _transformController.value;
+    final double scale = sqrt(
+      matrix.entry(0, 0) * matrix.entry(0, 0) +
+          matrix.entry(1, 0) * matrix.entry(1, 0),
+    );
+    double percentage = scale * 100;
+    _zoomNotifier.value = percentage.toInt();
   }
 
   void _handleZoom(bool zoomIn) {
@@ -107,8 +127,11 @@ class _GraphCanvasState extends State<GraphCanvas>
 
   @override
   Widget build(BuildContext context) {
-    final provider = context.watch<GraphProvider>();
-    var activeTool = provider.activeTool;
+    // Usiamo read per il riferimento al provider, ma Selector/select per i dati che cambiano
+    final provider = context.read<GraphProvider>();
+
+    // Ascoltiamo solo il cambio del tool per l'InteractiveViewer
+    final canPan = context.select<GraphProvider, bool>((p) => p.canPanCanvas);
 
     return Scaffold(
       body: Row(
@@ -138,8 +161,8 @@ class _GraphCanvasState extends State<GraphCanvas>
                         // così l'InteractiveViewer non sposta la telecamera col mouse.
                         // Gli eventi del trackpad invece bypassano la gesture arena e
                         // vengono comunque gestiti dall'InteractiveViewer!
-                        onPanDown: provider.canPanCanvas ? null : (_) {},
-                        onPanUpdate: provider.canPanCanvas ? null : (_) {},
+                        onPanDown: canPan ? null : (_) {},
+                        onPanUpdate: canPan ? null : (_) {},
                         child: Listener(
                           // IL CUORE DELL'INPUT CENTRALIZZATO
                           onPointerDown: (event) {
@@ -165,8 +188,14 @@ class _GraphCanvasState extends State<GraphCanvas>
                           },
                           onPointerHover: (event) =>
                               provider.updateCurrentPosition(event.localPosition),
-                          child: MouseRegion(
-                            cursor: buildCursor(provider),
+                          child: Selector<GraphProvider, SystemMouseCursor>(
+                            selector: (_, p) => buildCursor(p),
+                            builder: (context, cursor, child) {
+                              return MouseRegion(
+                                cursor: cursor,
+                                child: child!,
+                              );
+                            },
                             child: RepaintBoundary(
                               key: provider.canvasBoundaryKey,
                               child: SizedBox(
@@ -175,24 +204,71 @@ class _GraphCanvasState extends State<GraphCanvas>
                                 child: Stack(
                                   clipBehavior: Clip.none,
                                   children: [
-                                    ...buildNodes(provider),
+                                    Selector<GraphProvider, List<String>>(
+                                      selector: (_, p) =>
+                                          p.visibleNodes.map((n) => n.id).toList(),
+                                      shouldRebuild: (prev, next) {
+                                        if (prev.length != next.length) return true;
+                                        for (int i = 0; i < prev.length; i++) {
+                                          if (prev[i] != next[i]) return true;
+                                        }
+                                        return false;
+                                      },
+                                      builder: (context, nodeIds, _) {
+                                        return Stack(
+                                          clipBehavior: Clip.none,
+                                          children: nodeIds.map((id) {
+                                            return NodeWidgetById(
+                                              key: ValueKey(id),
+                                              id: id,
+                                            );
+                                          }).toList(),
+                                        );
+                                      },
+                                    ),
                                     Positioned.fill(
                                       child: IgnorePointer(
-                                        child: CustomPaint(
-                                          painter:
-                                              EdgePainter(provider: provider),
+                                        child: RepaintBoundary(
+                                          child: CustomPaint(
+                                            painter:
+                                                EdgePainter(provider: provider),
+                                          ),
                                         ),
                                       ),
                                     ),
-                                    if (provider.currentPosition != null &&
-                                        (provider.activeTool == ToolType.node ||
-                                            activeTool == ToolType.container))
-                                      (() {
-                                        return buildGhost(activeTool, provider);
-                                      })(),
-                                    if (provider.startPosition != null &&
-                                        provider.currentPosition != null)
-                                      buildRectSelection(provider),
+                                    // Ghost e SelectionRect devono essere Selector granulari
+                                    Selector<GraphProvider,
+                                        ({ToolType tool, Offset? pos})>(
+                                      selector: (_, p) => (
+                                        tool: p.activeTool,
+                                        pos: p.currentPosition
+                                      ),
+                                      builder: (context, data, _) {
+                                        if (data.pos != null &&
+                                            (data.tool == ToolType.node ||
+                                                data.tool == ToolType.container)) {
+                                          return buildGhost(data.tool, provider);
+                                        }
+                                        return const SizedBox.shrink();
+                                      },
+                                    ),
+                                    Selector<GraphProvider,
+                                        ({Offset? start, Offset? current})>(
+                                      selector: (_, p) => (
+                                        start: p.startPosition,
+                                        current: p.currentPosition
+                                      ),
+                                      builder: (context, data, _) {
+                                        if (data.start != null &&
+                                            data.current != null) {
+                                          return buildRectSelection(
+                                            data.start!,
+                                            data.current!,
+                                          );
+                                        }
+                                        return const SizedBox.shrink();
+                                      },
+                                    ),
                                   ],
                                 ),
                               ),
@@ -297,9 +373,14 @@ class _GraphCanvasState extends State<GraphCanvas>
                 // Indicatore percentuale attuale
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                  child: Text(
-                    "${_zoom}%",
-                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  child: ValueListenableBuilder<int>(
+                    valueListenable: _zoomNotifier,
+                    builder: (context, zoom, _) {
+                      return Text(
+                        "$zoom%",
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      );
+                    },
                   ),
                 ),
                 IconButton(
@@ -333,52 +414,6 @@ class _GraphCanvasState extends State<GraphCanvas>
     );
   }
 
-  List<NodeWidget> buildNodes(GraphProvider provider) {
-    var nodesToRender = List<GraphNode>.from(provider.visibleNodes);
-    /*
-    int getDepth(GraphNode node) {
-      int depth = 0;
-      String? currentParentId = node.parentId;
-      while (currentParentId != null) {
-        depth++;
-        final parentIndex = provider.nodes.indexWhere(
-          (n) => n.id == currentParentId,
-        );
-        if (parentIndex == -1) break;
-        currentParentId = provider.nodes[parentIndex].parentId;
-      }
-      return depth;
-    }
-
-    nodesToRender.sort((a, b) {
-      final depthA = getDepth(a);
-      final depthB = getDepth(b);
-
-      // 1. Ordina per profondità (i parent sotto, i figli sopra)
-      if (depthA != depthB) return depthA.compareTo(depthB);
-
-      // 2. A parità di profondità, i container stanno sotto ai nodi normali
-      if (a.isContainer && !b.isContainer) return -1;
-      if (!a.isContainer && b.isContainer) return 1;
-
-      // 3. NUOVO: A parità di tutto il resto, chi sta più in fondo nella
-      // lista del provider (perché appena cliccato/mosso) viene disegnato sopra.
-      final indexA = provider.nodes.indexWhere((n) => n.id == a.id);
-      final indexB = provider.nodes.indexWhere((n) => n.id == b.id);
-      return indexA.compareTo(indexB);
-    });
-*/
-    return nodesToRender.map((node) {
-      return NodeWidget(
-        key: ValueKey(node.id),
-        node: node,
-        onTapOut: () {
-          _canvasFocusNode.requestFocus();
-        },
-      );
-    }).toList();
-  }
-
   NodeWidget buildGhost(ToolType activeTool, GraphProvider provider) {
     final isContainer = activeTool == ToolType.container;
     Size previewSize = isContainer
@@ -401,15 +436,17 @@ class _GraphCanvasState extends State<GraphCanvas>
     );
   }
 
-  Positioned buildRectSelection(GraphProvider provider) {
+  Positioned buildRectSelection(Offset start, Offset current) {
     return Positioned.fromRect(
-      rect: Rect.fromPoints(provider.startPosition!, provider.currentPosition!),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.blue.withOpacity(0.1),
-          border: Border.all(
-            color: Colors.blue,
-            width: 1.0 / _transformController.value.getMaxScaleOnAxis(),
+      rect: Rect.fromPoints(start, current),
+      child: RepaintBoundary(
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.blue.withValues(alpha: 0.1),
+            border: Border.all(
+              color: Colors.blue,
+              width: 1.0 / _transformController.value.getMaxScaleOnAxis(),
+            ),
           ),
         ),
       ),

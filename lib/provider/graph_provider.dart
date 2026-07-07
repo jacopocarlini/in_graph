@@ -20,6 +20,7 @@ class GraphProvider extends ChangeNotifier {
   InteractionMode _interactionMode = InteractionMode.idle;
 
   final List<GraphNode> _nodes = [];
+  Map<String, GraphNode> _nodesMap = {};
   final List<GraphEdge> _edges = [];
 
   ToolType _activeTool = ToolType.pointer;
@@ -37,6 +38,25 @@ class GraphProvider extends ChangeNotifier {
   String? _interactingNodeId;
   String? _hoveredNodeId;
 
+  // ==========================================
+  // CACHE E OTTIMIZZAZIONI
+  // ==========================================
+  List<AggregatedEdge>? _cachedAggregatedEdges;
+  final Map<String, List<Offset>> _edgePathCache = {};
+
+  void _invalidateCache({bool pathsOnly = false}) {
+    _edgePathCache.clear();
+    if (!pathsOnly) {
+      _cachedAggregatedEdges = null;
+    }
+  }
+
+  bool get _isInteracting =>
+      _interactionMode == InteractionMode.draggingNode ||
+      _interactionMode == InteractionMode.resizingNode ||
+      _interactionMode == InteractionMode.rectSelecting ||
+      _interactionMode == InteractionMode.creatingEdge;
+
   /// GlobalKey usata dal GraphCanvas per identificare il RepaintBoundary del canvas.
   /// La toolbar la usa per catturare il PNG dell'intero grafo.
   final GlobalKey canvasBoundaryKey = GlobalKey();
@@ -52,6 +72,8 @@ class GraphProvider extends ChangeNotifier {
   Offset? get currentPosition => _currentPosition;
 
   List<GraphNode> get nodes => _nodes;
+
+  Map<String, GraphNode> get nodesMap => _nodesMap;
 
   List<GraphEdge> get edges => _edges;
 
@@ -92,6 +114,7 @@ class GraphProvider extends ChangeNotifier {
     _activeTool = tool;
     _draftEdgeSourceId = null;
     _draftEdgeTarget = null;
+    _invalidateCache();
     clearSelection();
     notifyListeners();
   }
@@ -102,6 +125,7 @@ class GraphProvider extends ChangeNotifier {
   }
 
   void updateCurrentPosition(Offset position) {
+    if (_currentPosition == position) return;
     _currentPosition = position;
     _updateHoverState(position);
   }
@@ -117,9 +141,8 @@ class GraphProvider extends ChangeNotifier {
     } else if (_hoveredNodeId != null) {
       _hoveredNodeId = null;
       notifyListeners();
-    } else {
-      notifyListeners();
     }
+    // Rimosso il notifyListeners() incondizionato nel ramo else
   }
 
   // ==========================================
@@ -129,39 +152,13 @@ class GraphProvider extends ChangeNotifier {
     _selectionNodes = [id];
     _isTextEdit = false;
     _selectedEdges.clear();
-
-    // Porta in primo piano (Bring to Front)
-    /*
-    if (ids.isNotEmpty) {
-      final Set<String> allIdsToFront = Set.from(ids);
-
-      // Troviamo anche tutti i figli/nipoti
-      void findDescendants(String parentId) {
-        for (var node in _nodes) {
-          if (node.parentId == parentId && !allIdsToFront.contains(node.id)) {
-            allIdsToFront.add(node.id);
-            findDescendants(node.id);
-          }
-        }
-      }
-
-      for (var id in ids) {
-        findDescendants(id);
-      }
-
-      final nodesToFront = _nodes
-          .where((n) => allIdsToFront.contains(n.id))
-          .toList();
-      _nodes.removeWhere((n) => allIdsToFront.contains(n.id));
-      _nodes.addAll(nodesToFront);
-    }
-*/
     notifyListeners();
   }
 
   void clearSelection() {
     _selectionNodes.clear();
     _selectedEdges.clear();
+    _invalidateCache();
     notifyListeners();
   }
 
@@ -169,140 +166,15 @@ class GraphProvider extends ChangeNotifier {
     _selectedEdges.clear();
 
     final aggregatedEdges = getAggregatedEdges();
-    final Map<String, List<String>> nodePorts = {};
-
-    for (var edge in aggregatedEdges) {
-      final source = _nodes.cast<GraphNode?>().firstWhere(
-        (n) => n?.id == edge.sourceId,
-        orElse: () => null,
-      );
-      final target = _nodes.cast<GraphNode?>().firstWhere(
-        (n) => n?.id == edge.targetId,
-        orElse: () => null,
-      );
-      if (source == null || target == null || source.id == target.id) continue;
-
-      nodePorts.putIfAbsent(source.id, () => []).add(edge.id);
-      nodePorts.putIfAbsent(target.id, () => []).add(edge.id);
-    }
-
     String? bestEdgeId;
 
     for (var edge in aggregatedEdges) {
-      final source = _nodes.cast<GraphNode?>().firstWhere(
-        (n) => n?.id == edge.sourceId,
-        orElse: () => null,
-      );
-      final target = _nodes.cast<GraphNode?>().firstWhere(
-        (n) => n?.id == edge.targetId,
-        orElse: () => null,
-      );
-      if (source == null || target == null) continue;
-
-      final sRect = Rect.fromLTWH(
-        source.position.dx,
-        source.position.dy,
-        source.size.width,
-        source.size.height,
-      );
-      final tRect = Rect.fromLTWH(
-        target.position.dx,
-        target.position.dy,
-        target.size.width,
-        target.size.height,
-      );
-
-      // Se il click è dentro il rettangolo di un nodo sorgente o target,
-      // ignoriamo la freccia per dare precedenza al nodo.
-      if (sRect.contains(localPosition) || tRect.contains(localPosition)) {
-        continue;
-      }
-
-      final sourceIndex = nodePorts[source.id]!.indexOf(edge.id);
-      final sourceTotal = nodePorts[source.id]!.length;
-
-      final targetIndex = nodePorts[target.id]!.indexOf(edge.id);
-      final targetTotal = nodePorts[target.id]!.length;
-
-      final dx = tRect.center.dx - sRect.center.dx;
-      final dy = tRect.center.dy - sRect.center.dy;
-
-      Offset sOffset = Offset.zero;
-      Offset tOffset = Offset.zero;
-
-      const double minStep = 20.0;
-
-      if (dx.abs() > dy.abs()) {
-        if (sourceTotal > 1) {
-          final step = ((source.size.height * 0.7) / (sourceTotal - 1)).clamp(
-            minStep,
-            25.0,
-          );
-          sOffset = Offset(0, (sourceIndex - (sourceTotal - 1) / 2) * step);
-        }
-        if (targetTotal > 1) {
-          final step = ((target.size.height * 0.7) / (targetTotal - 1)).clamp(
-            minStep,
-            25.0,
-          );
-          tOffset = Offset(0, (targetIndex - (targetTotal - 1) / 2) * step);
-        }
-      } else {
-        if (sourceTotal > 1) {
-          final step = ((source.size.width * 0.7) / (sourceTotal - 1)).clamp(
-            minStep,
-            25.0,
-          );
-          sOffset = Offset((sourceIndex - (sourceTotal - 1) / 2) * step, 0);
-        }
-        if (targetTotal > 1) {
-          final step = ((target.size.width * 0.7) / (targetTotal - 1)).clamp(
-            minStep,
-            25.0,
-          );
-          tOffset = Offset((targetIndex - (targetTotal - 1) / 2) * step, 0);
-        }
-      }
-
-      final virtualSRect = sRect.shift(sOffset);
-      final virtualTRect = tRect.shift(tOffset);
-
-      final int globalIndex = aggregatedEdges.indexOf(edge);
-      final double laneOffset = (globalIndex % 6) * 20.0;
-
-      List<Rect> obstacles = [];
-      for (var node in visibleNodes) {
-        if (node.id == edge.sourceId || node.id == edge.targetId) continue;
-
-        if (node.isContainer &&
-            (_isAncestor(node.id, edge.sourceId) ||
-                _isAncestor(node.id, edge.targetId))) {
-          continue;
-        }
-
-        obstacles.add(
-          Rect.fromLTWH(
-            node.position.dx,
-            node.position.dy,
-            node.size.width,
-            node.size.height,
-          ),
-        );
-      }
-
-      final points = EdgeRoutingService.calculateOrthogonalPoints(
-        virtualSRect,
-        virtualTRect,
-        obstacles: obstacles,
-        laneOffset: laneOffset,
-      );
+      final points = getEdgePath(edge);
 
       // Usiamo una soglia di hit-test un po' più generosa (16.0 pixel)
       if (EdgeRoutingService.isPointNearEdge(localPosition, points, 16.0)) {
-        // Trovata! Invece di ritornare subito, cerchiamo se ce n'è una più vicina
-        // (utile se sono molto ammassate)
         bestEdgeId = edge.id;
-        break; // Per ora prendiamo la prima che capita ma con logica sincronizzata
+        break;
       }
     }
 
@@ -343,106 +215,8 @@ class GraphProvider extends ChangeNotifier {
 
     // Seleziona frecce
     final aggregatedEdges = getAggregatedEdges();
-    final Map<String, List<String>> edgesBySource = {};
     for (var edge in aggregatedEdges) {
-      edgesBySource.putIfAbsent(edge.sourceId, () => []).add(edge.id);
-    }
-
-    for (var edge in aggregatedEdges) {
-      final source = _nodes.cast<GraphNode?>().firstWhere(
-        (n) => n?.id == edge.sourceId,
-        orElse: () => null,
-      );
-      final target = _nodes.cast<GraphNode?>().firstWhere(
-        (n) => n?.id == edge.targetId,
-        orElse: () => null,
-      );
-      if (source == null || target == null) continue;
-
-      final sRect = Rect.fromLTWH(
-        source.position.dx,
-        source.position.dy,
-        source.size.width,
-        source.size.height,
-      );
-      final tRect = Rect.fromLTWH(
-        target.position.dx,
-        target.position.dy,
-        target.size.width,
-        target.size.height,
-      );
-
-      final sourceIndex = edgesBySource[edge.sourceId]!.indexOf(edge.id);
-      final sourceTotal = edgesBySource[edge.sourceId]!.length;
-
-      final targetIndex = edgesBySource[edge.targetId]?.indexOf(edge.id) ?? 0;
-      final targetTotal = edgesBySource[edge.targetId]?.length ?? 1;
-
-      final dx = tRect.center.dx - sRect.center.dx;
-      final dy = tRect.center.dy - sRect.center.dy;
-
-      Offset sOffset = Offset.zero;
-      Offset tOffset = Offset.zero;
-
-      const double minStep = 20.0;
-
-      if (dx.abs() > dy.abs()) {
-        if (sourceTotal > 1) {
-          final step = ((source.size.height * 0.7) / (sourceTotal - 1)).clamp(
-            minStep,
-            25.0,
-          );
-          sOffset = Offset(0, (sourceIndex - (sourceTotal - 1) / 2) * step);
-        }
-        if (targetTotal > 1) {
-          final step = ((target.size.height * 0.7) / (targetTotal - 1)).clamp(
-            minStep,
-            25.0,
-          );
-          tOffset = Offset(0, (targetIndex - (targetTotal - 1) / 2) * step);
-        }
-      } else {
-        if (sourceTotal > 1) {
-          final step = ((source.size.width * 0.7) / (sourceTotal - 1)).clamp(
-            minStep,
-            25.0,
-          );
-          sOffset = Offset((sourceIndex - (sourceTotal - 1) / 2) * step, 0);
-        }
-        if (targetTotal > 1) {
-          final step = ((target.size.width * 0.7) / (targetTotal - 1)).clamp(
-            minStep,
-            25.0,
-          );
-          tOffset = Offset((targetIndex - (targetTotal - 1) / 2) * step, 0);
-        }
-      }
-
-      final virtualSRect = sRect.shift(sOffset);
-      final virtualTRect = tRect.shift(tOffset);
-
-      final int globalIndex = aggregatedEdges.indexOf(edge);
-      final double laneOffset = (globalIndex % 6) * 20.0;
-
-      List<Rect> obstacles = [];
-      for (var node in _nodes) {
-        if (node.id == edge.sourceId || node.id == edge.targetId) continue;
-        obstacles.add(
-          Rect.fromLTWH(
-            node.position.dx,
-            node.position.dy,
-            node.size.width,
-            node.size.height,
-          ),
-        );
-      }
-
-      final points = EdgeRoutingService.calculateOrthogonalPoints(
-        virtualSRect,
-        virtualTRect,
-        obstacles: obstacles,
-        laneOffset: laneOffset,
-      );
+      final points = getEdgePath(edge);
 
       bool isCompletelyInside = points.every((p) => selectionRect.contains(p));
       if (isCompletelyInside) {
@@ -465,7 +239,11 @@ class GraphProvider extends ChangeNotifier {
     if (_selectionNodes.isEmpty && _selectedEdges.isEmpty) return;
 
     // 1. Rimuovi i nodi selezionati
-    _nodes.removeWhere((node) => _selectionNodes.contains(node.id));
+    final deletedNodeIds = _selectionNodes.toSet();
+    _nodes.removeWhere((node) => deletedNodeIds.contains(node.id));
+    for (var id in deletedNodeIds) {
+      _nodesMap.remove(id);
+    }
 
     // 2. Rimuovi gli edge reali partendo dalla mappatura di quelli aggregati selezionati
     _edges.removeWhere((edge) {
@@ -483,6 +261,7 @@ class GraphProvider extends ChangeNotifier {
 
     _selectionNodes.clear();
     _selectedEdges.clear();
+    _invalidateCache();
     notifyListeners();
   }
 
@@ -493,11 +272,13 @@ class GraphProvider extends ChangeNotifier {
     _nodes.clear();
     _edges.clear();
     _nodes.addAll(newNodes);
+    _nodesMap = {for (var n in _nodes) n.id: n};
     _edges.addAll(newEdges);
     _selectionNodes.clear();
     _selectedEdges.clear();
     _draftEdgeSourceId = null;
     _draftEdgeTarget = null;
+    _invalidateCache();
     notifyListeners();
   }
 
@@ -531,6 +312,8 @@ class GraphProvider extends ChangeNotifier {
 
   void addNode(GraphNode node) {
     _nodes.add(node);
+    _nodesMap[node.id] = node;
+    _invalidateCache();
     notifyListeners();
   }
 
@@ -538,6 +321,7 @@ class GraphProvider extends ChangeNotifier {
     final index = _nodes.indexWhere((n) => n.id == id);
     if (index != -1) {
       _nodes[index] = _nodes[index].copyWith(name: name);
+      _nodesMap[id] = _nodes[index];
       notifyListeners();
     }
   }
@@ -557,6 +341,7 @@ class GraphProvider extends ChangeNotifier {
         clearIcon: clearIcon,
         clearIconAsset: clearIconAsset,
       );
+      _nodesMap[id] = _nodes[index];
       notifyListeners();
     }
   }
@@ -565,6 +350,7 @@ class GraphProvider extends ChangeNotifier {
     final index = _nodes.indexWhere((n) => n.id == id);
     if (index != -1) {
       _nodes[index] = _nodes[index].copyWith(color: color);
+      _nodesMap[id] = _nodes[index];
       notifyListeners();
     }
   }
@@ -573,18 +359,16 @@ class GraphProvider extends ChangeNotifier {
     final index = _nodes.indexWhere((n) => n.id == id);
     if (index != -1) {
       _nodes[index] = _nodes[index].copyWith(borderStyle: borderStyle);
+      _nodesMap[id] = _nodes[index];
       notifyListeners();
     }
   }
 
   void updateEdgeColor(String id, Color color) {
-    // Gestiamo sia edge reali che aggregati (usando la logica di mappatura se necessario)
-    // Per ora, cerchiamo l'edge reale.
     final index = _edges.indexWhere((e) => e.id == id);
     if (index != -1) {
       _edges[index] = _edges[index].copyWith(color: color);
     } else {
-      // Se è un edge aggregato, cerchiamo tutti gli edge reali sottostanti
       for (int i = 0; i < _edges.length; i++) {
         final visibleSource = _getVisibleEndpoint(_edges[i].sourceId);
         final visibleTarget = _getVisibleEndpoint(_edges[i].targetId);
@@ -661,6 +445,8 @@ class GraphProvider extends ChangeNotifier {
       final height = newSize.height < 100 ? 100.0 : newSize.height;
 
       _nodes[index] = _nodes[index].copyWith(size: Size(width, height));
+      _nodesMap[id] = _nodes[index];
+      _invalidateCache(pathsOnly: true);
       notifyListeners();
     }
   }
@@ -685,10 +471,12 @@ class GraphProvider extends ChangeNotifier {
     // Lista di supporto per spostare i nodi in movimento in fondo all'array
     List<GraphNode> movedNodes = [];
 
-    for (var node in _nodes) {
+    for (int i = 0; i < _nodes.length; i++) {
+      final node = _nodes[i];
       if (allIdsToMove.contains(node.id)) {
-        node.position += delta;
-        movedNodes.add(node);
+        _nodes[i] = node.copyWith(position: node.position + delta);
+        _nodesMap[node.id] = _nodes[i];
+        movedNodes.add(_nodes[i]);
       }
     }
 
@@ -698,6 +486,7 @@ class GraphProvider extends ChangeNotifier {
       _nodes.addAll(movedNodes);
     }
 
+    _invalidateCache(pathsOnly: true);
     notifyListeners();
   }
 
@@ -714,7 +503,6 @@ class GraphProvider extends ChangeNotifier {
   // GESTIONE CONTAINER (DRAG, DROP, COLLAPSE)
   // ==========================================
   void handleNodeDrop(String nodeId) {
-    // 1. Portiamo la famiglia trascinata in primo piano visivo (Invariato)
     final Set<String> familyIds = {nodeId};
     void findDescendants(String parentId) {
       for (var n in _nodes) {
@@ -739,52 +527,28 @@ class GraphProvider extends ChangeNotifier {
       _nodes.addAll(familyNodes);
     }
 
-    // ==========================================
-    // 2. APPLICHIAMO LA REGOLA GEOMETRICA
-    // ==========================================
     _recalculateHierarchyBasedOnGeometry();
-
     notifyListeners();
   }
 
   void autoAdoptNodes(GraphNode container) {
-    // Appena viene creato un nuovo elemento, diamo una passata alla gerarchia
-    // per vedere se ingloba qualcosa di pre-esistente
     _recalculateHierarchyBasedOnGeometry();
     notifyListeners();
   }
 
-  // ==========================================
-  // HELPER: GARANTISCE CHE I FIGLI SIANO SEMPRE SOPRA I PADRI
-  // ==========================================
   void _enforceParentChildZOrder() {
     bool requiresSorting = true;
-
-    // Continua a ciclare finché non ci sono più conflitti di Z-Index
     while (requiresSorting) {
       requiresSorting = false;
-
       for (int i = 0; i < _nodes.length; i++) {
         final node = _nodes[i];
-
-        // Se il nodo ha un padre, verifichiamo dove si trova il padre
         if (node.parentId != null) {
           final parentIndex = _nodes.indexWhere((n) => n.id == node.parentId);
-
-          // Se l'indice del padre è MAGGIORE di quello del figlio,
-          // significa che il padre verrà disegnato DOPO e coprirà il figlio.
           if (parentIndex != -1 && parentIndex > i) {
-            // 1. Rimuoviamo il figlio dalla sua posizione errata (sotto)
             final childToMove = _nodes.removeAt(i);
-
-            // 2. Lo reinseriamo esattamente un livello SOPRA al padre.
-            // (Nota: poiché abbiamo rimosso un elemento prima del padre,
-            // il nuovo indice del padre è sceso di 1. Inserendo a `parentIndex`
-            // lo mettiamo automaticamente subito DOPO il padre).
             _nodes.insert(parentIndex, childToMove);
-
             requiresSorting = true;
-            break; // Rompiamo il ciclo `for` per ricominciare con gli indici aggiornati
+            break;
           }
         }
       }
@@ -792,17 +556,10 @@ class GraphProvider extends ChangeNotifier {
   }
 
   void updateContainerChildren(String containerId) {
-    // La logica geometrica ha stabilito che: "I figli devono rimanere invariati durante il resize"
-    // Nessun nodo adotta o abbandona figli durante un resize.
-
-    // Ci assicuriamo solo che il ridimensionamento non abbia rotto lo Z-Index
     _recalculateHierarchyBasedOnGeometry();
     notifyListeners();
   }
 
-  // ==========================================
-  // HELPER: Z-INDEX REAL-TIME PER IL RESIZE
-  // ==========================================
   void _bringOverlappingNodesToFront(String containerId) {
     final containerIndex = _nodes.indexWhere((n) => n.id == containerId);
     if (containerIndex == -1) return;
@@ -811,17 +568,12 @@ class GraphProvider extends ChangeNotifier {
     final containerRect = _getEffectiveRect(container);
 
     Set<String> overlappingIds = {};
-
-    // 1. Trova tutti i nodi toccati dal container in espansione
     for (var n in _nodes) {
-      // Ignora il container stesso, i suoi figli diretti (già gestiti) e i suoi antenati
       if (n.id == containerId ||
           n.parentId == containerId ||
           _isAncestor(n.id, containerId)) {
         continue;
       }
-
-      // Se i rettangoli si intersecano (overlaps), segnala il nodo per il primo piano
       if (containerRect.overlaps(_getEffectiveRect(n))) {
         overlappingIds.add(n.id);
       }
@@ -829,7 +581,6 @@ class GraphProvider extends ChangeNotifier {
 
     if (overlappingIds.isEmpty) return;
 
-    // 2. Recupera intere "famiglie" per non separare container inglobati dai loro stessi figli
     Set<String> familyIds = Set.from(overlappingIds);
     void findDescendants(String parentId) {
       for (var n in _nodes) {
@@ -844,7 +595,6 @@ class GraphProvider extends ChangeNotifier {
       findDescendants(id);
     }
 
-    // 3. Estrai i nodi mantenendo il loro ordine visivo preesistente tra di loro
     List<GraphNode> nodesToFront = [];
     for (var n in _nodes) {
       if (familyIds.contains(n.id)) {
@@ -852,7 +602,6 @@ class GraphProvider extends ChangeNotifier {
       }
     }
 
-    // 4. Rimuovili e accodali alla lista (posizione in fondo = primo piano)
     if (nodesToFront.isNotEmpty) {
       _nodes.removeWhere((n) => familyIds.contains(n.id));
       _nodes.addAll(nodesToFront);
@@ -871,7 +620,8 @@ class GraphProvider extends ChangeNotifier {
         oldSize: _nodes[index].size,
         isCollapsed: !_nodes[index].isCollapsed,
       );
-      // Niente ricalcolo gerarchico, cambiamo solo l'estetica!
+      _nodesMap[nodeId] = _nodes[index];
+      _invalidateCache();
       notifyListeners();
     }
   }
@@ -885,10 +635,10 @@ class GraphProvider extends ChangeNotifier {
       orElse: () => null,
     );
     String visibleId = nodeId;
-    Set<String> visited = {nodeId}; // Sicurezza anti-loop
+    Set<String> visited = {nodeId};
 
     while (current != null && current.parentId != null) {
-      if (visited.contains(current.parentId!)) break; // Esce se trova un loop
+      if (visited.contains(current.parentId!)) break;
       visited.add(current.parentId!);
 
       final parent = _nodes.cast<GraphNode?>().firstWhere(
@@ -904,12 +654,12 @@ class GraphProvider extends ChangeNotifier {
   }
 
   List<AggregatedEdge> getAggregatedEdges() {
-    Map<String, AggregatedEdge> aggregatedMap = {};
+    if (_cachedAggregatedEdges != null) return _cachedAggregatedEdges!;
 
+    Map<String, AggregatedEdge> aggregatedMap = {};
     for (var edge in _edges) {
       final visibleSource = _getVisibleEndpoint(edge.sourceId);
       final visibleTarget = _getVisibleEndpoint(edge.targetId);
-
       if (visibleSource == visibleTarget) continue;
 
       final key = '$visibleSource-$visibleTarget';
@@ -921,7 +671,6 @@ class GraphProvider extends ChangeNotifier {
           targetId: existing.targetId,
           count: existing.count + 1,
           label: existing.label,
-          // Mantieni la label
           color: existing.color,
           borderStyle: existing.borderStyle,
           showSourceArrow: existing.showSourceArrow,
@@ -941,7 +690,106 @@ class GraphProvider extends ChangeNotifier {
         );
       }
     }
-    return aggregatedMap.values.toList();
+    _cachedAggregatedEdges = aggregatedMap.values.toList();
+    return _cachedAggregatedEdges!;
+  }
+
+  List<Offset> getEdgePath(AggregatedEdge edge) {
+    if (_edgePathCache.containsKey(edge.id)) return _edgePathCache[edge.id]!;
+
+    final source = _nodes.cast<GraphNode?>().firstWhere(
+      (n) => n?.id == edge.sourceId,
+      orElse: () => null,
+    );
+    final target = _nodes.cast<GraphNode?>().firstWhere(
+      (n) => n?.id == edge.targetId,
+      orElse: () => null,
+    );
+
+    if (source == null || target == null) return [];
+
+    final sRect = Rect.fromLTWH(
+      source.position.dx,
+      source.position.dy,
+      source.size.width,
+      source.size.height,
+    );
+    final tRect = Rect.fromLTWH(
+      target.position.dx,
+      target.position.dy,
+      target.size.width,
+      target.size.height,
+    );
+
+    final aggregatedEdges = getAggregatedEdges();
+    final Map<String, List<String>> nodePorts = {};
+    for (var e in aggregatedEdges) {
+      nodePorts.putIfAbsent(e.sourceId, () => []).add(e.id);
+      nodePorts.putIfAbsent(e.targetId, () => []).add(e.id);
+    }
+
+    final sourceIndex = nodePorts[source.id]?.indexOf(edge.id) ?? 0;
+    final sourceTotal = nodePorts[source.id]?.length ?? 1;
+    final targetIndex = nodePorts[target.id]?.indexOf(edge.id) ?? 0;
+    final targetTotal = nodePorts[target.id]?.length ?? 1;
+
+    final dx = tRect.center.dx - sRect.center.dx;
+    final dy = tRect.center.dy - sRect.center.dy;
+
+    Offset sOffset = Offset.zero;
+    Offset tOffset = Offset.zero;
+    const double minStep = 20.0;
+
+    if (dx.abs() > dy.abs()) {
+      if (sourceTotal > 1) {
+        final step = ((source.size.height * 0.7) / (sourceTotal - 1)).clamp(minStep, 25.0);
+        sOffset = Offset(0, (sourceIndex - (sourceTotal - 1) / 2) * step);
+      }
+      if (targetTotal > 1) {
+        final step = ((target.size.height * 0.7) / (targetTotal - 1)).clamp(minStep, 25.0);
+        tOffset = Offset(0, (targetIndex - (targetTotal - 1) / 2) * step);
+      }
+    } else {
+      if (sourceTotal > 1) {
+        final step = ((source.size.width * 0.7) / (sourceTotal - 1)).clamp(minStep, 25.0);
+        sOffset = Offset((sourceIndex - (sourceTotal - 1) / 2) * step, 0);
+      }
+      if (targetTotal > 1) {
+        final step = ((target.size.width * 0.7) / (targetTotal - 1)).clamp(minStep, 25.0);
+        tOffset = Offset((targetIndex - (targetTotal - 1) / 2) * step, 0);
+      }
+    }
+
+    final virtualSRect = sRect.shift(sOffset);
+    final virtualTRect = tRect.shift(tOffset);
+
+    if (_isInteracting) {
+      return [
+        virtualSRect.center,
+        Offset(virtualSRect.center.dx, virtualTRect.center.dy),
+        virtualTRect.center,
+      ];
+    }
+
+    final int globalIndex = aggregatedEdges.indexOf(edge);
+    final double laneOffset = (globalIndex % 6) * 20.0;
+
+    List<Rect> obstacles = [];
+    for (var node in visibleNodes) {
+      if (node.id == source.id || node.id == target.id) continue;
+      if (node.isContainer && (_isAncestor(node.id, source.id) || _isAncestor(node.id, target.id))) continue;
+      obstacles.add(Rect.fromLTWH(node.position.dx, node.position.dy, node.size.width, node.size.height));
+    }
+
+    final points = EdgeRoutingService.calculateOrthogonalPoints(
+      virtualSRect,
+      virtualTRect,
+      obstacles: obstacles,
+      laneOffset: laneOffset,
+    );
+
+    _edgePathCache[edge.id] = points;
+    return points;
   }
 
   void startEdge(String sourceNodeId) {
@@ -964,12 +812,7 @@ class GraphProvider extends ChangeNotifier {
     GraphNode? targetNode;
     for (var node in nodes.reversed) {
       if (node.id == _draftEdgeSourceId) continue;
-      final rect = Rect.fromLTWH(
-        node.position.dx,
-        node.position.dy,
-        node.size.width,
-        node.size.height,
-      );
+      final rect = Rect.fromLTWH(node.position.dx, node.position.dy, node.size.width, node.size.height);
       if (rect.contains(position)) {
         targetNode = node;
         break;
@@ -978,14 +821,8 @@ class GraphProvider extends ChangeNotifier {
 
     if (targetNode != null) {
       bool edgeAlreadyExists = edges.any((edge) {
-        bool isSameDirection =
-            edge.sourceId == _draftEdgeSourceId &&
-            edge.targetId == targetNode!.id;
-        bool isOppositeDirection =
-            edge.sourceId == targetNode!.id &&
-            edge.targetId == _draftEdgeSourceId;
-
-        return isSameDirection || isOppositeDirection;
+        return (edge.sourceId == _draftEdgeSourceId && edge.targetId == targetNode!.id) ||
+               (edge.sourceId == targetNode!.id && edge.targetId == _draftEdgeSourceId);
       });
 
       if (!edgeAlreadyExists) {
@@ -995,6 +832,7 @@ class GraphProvider extends ChangeNotifier {
           targetId: targetNode.id,
         );
         edges.add(newEdge);
+        _invalidateCache();
         _selectedEdges.clear();
         _selectedEdges.add(newEdge.id);
       } else {
@@ -1008,26 +846,18 @@ class GraphProvider extends ChangeNotifier {
     return message;
   }
 
-  // ==========================================
-  // HELPER GERARCHIA E OSTACOLI
-  // ==========================================
-  bool isAncestor(String ancestorId, String childId) {
-    return _isAncestor(ancestorId, childId);
-  }
+  bool isAncestor(String ancestorId, String childId) => _isAncestor(ancestorId, childId);
 
   bool _isAncestor(String ancestorId, String childId) {
     String? currentId = childId;
-    Set<String> visited = {childId}; // Sicurezza anti-loop
-
+    Set<String> visited = {childId};
     while (currentId != null) {
       final nodeIndex = _nodes.indexWhere((n) => n.id == currentId);
       if (nodeIndex == -1) break;
-
       final parentId = _nodes[nodeIndex].parentId;
       if (parentId == ancestorId) return true;
-
       if (parentId != null) {
-        if (visited.contains(parentId)) break; // Esce se trova un loop
+        if (visited.contains(parentId)) break;
         visited.add(parentId);
       }
       currentId = parentId;
@@ -1035,125 +865,34 @@ class GraphProvider extends ChangeNotifier {
     return false;
   }
 
-  // ==========================================
-  // HIT TESTING (Chi ho colpito?)
-  // ==========================================
   GraphNode? _hitTestNodes(Offset position) {
-    // Cicliamo al contrario: i nodi disegnati sopra (ultimi nella lista) hanno la precedenza
     for (var node in visibleNodes.reversed) {
-      final rect = _getEffectiveRect(node);
-      if (rect.contains(position)) return node;
+      if (_getEffectiveRect(node).contains(position)) return node;
     }
     return null;
   }
 
-  // --- Dentro GraphProvider ---
   Alignment? _hitTestResizeHandles(Offset position) {
     if (_selectionNodes.isEmpty) return null;
-
-    final node = _nodes.cast<GraphNode?>().firstWhere(
-      (n) => n?.id == _selectionNodes.first,
-      orElse: () => null,
-    );
-
+    final node = _nodes.cast<GraphNode?>().firstWhere((n) => n?.id == _selectionNodes.first, orElse: () => null);
     if (node == null || !node.isContainer || node.isCollapsed) return null;
 
     final rect = _getEffectiveRect(node);
-
-    // Deve combaciare con lo spessore definito nella UI (NodeWidget)
     const double thickness = 20.0;
     const double halfThickness = thickness / 2;
 
-    // ==========================================
-    // LOGICA DI HIT-TEST CONTINUA
-    // Verifichiamo se il punto è dentro i rettangoli perimetrali
-    // ==========================================
+    if (Rect.fromLTWH(rect.left - halfThickness, rect.top - halfThickness, thickness, thickness).contains(position)) return Alignment.topLeft;
+    if (Rect.fromLTWH(rect.right - halfThickness, rect.top - halfThickness, thickness, thickness).contains(position)) return Alignment.topRight;
+    if (Rect.fromLTWH(rect.left - halfThickness, rect.bottom - halfThickness, thickness, thickness).contains(position)) return Alignment.bottomLeft;
+    if (Rect.fromLTWH(rect.right - halfThickness, rect.bottom - halfThickness, thickness, thickness).contains(position)) return Alignment.bottomRight;
 
-    // 1. Controllo PRIORITARIO degli Angoli
-    // (Sono quadrati thickness x thickness posizionati a cavallo degli angoli reali)
-
-    // Top-Left
-    if (Rect.fromLTWH(
-      rect.left - halfThickness,
-      rect.top - halfThickness,
-      thickness,
-      thickness,
-    ).contains(position)) {
-      return Alignment.topLeft;
-    }
-    // Top-Right
-    if (Rect.fromLTWH(
-      rect.right - halfThickness,
-      rect.top - halfThickness,
-      thickness,
-      thickness,
-    ).contains(position)) {
-      return Alignment.topRight;
-    }
-    // Bottom-Left
-    if (Rect.fromLTWH(
-      rect.left - halfThickness,
-      rect.bottom - halfThickness,
-      thickness,
-      thickness,
-    ).contains(position)) {
-      return Alignment.bottomLeft;
-    }
-    // Bottom-Right
-    if (Rect.fromLTWH(
-      rect.right - halfThickness,
-      rect.bottom - halfThickness,
-      thickness,
-      thickness,
-    ).contains(position)) {
-      return Alignment.bottomRight;
-    }
-
-    // 2. Controllo dei Bordi (le barre lunghe esclusi gli angoli)
-
-    // Bordo Nord (Top)
-    if (Rect.fromLTWH(
-      rect.left + halfThickness,
-      rect.top - halfThickness,
-      rect.width - thickness,
-      thickness,
-    ).contains(position)) {
-      return Alignment.topCenter;
-    }
-    // Bordo Sud (Bottom)
-    if (Rect.fromLTWH(
-      rect.left + halfThickness,
-      rect.bottom - halfThickness,
-      rect.width - thickness,
-      thickness,
-    ).contains(position)) {
-      return Alignment.bottomCenter;
-    }
-    // Bordo Ovest (Left)
-    if (Rect.fromLTWH(
-      rect.left - halfThickness,
-      rect.top + halfThickness,
-      thickness,
-      rect.height - thickness,
-    ).contains(position)) {
-      return Alignment.centerLeft;
-    }
-    // Bordo Est (Right)
-    if (Rect.fromLTWH(
-      rect.right - halfThickness,
-      rect.top + halfThickness,
-      thickness,
-      rect.height - thickness,
-    ).contains(position)) {
-      return Alignment.centerRight;
-    }
+    if (Rect.fromLTWH(rect.left + halfThickness, rect.top - halfThickness, rect.width - thickness, thickness).contains(position)) return Alignment.topCenter;
+    if (Rect.fromLTWH(rect.left + halfThickness, rect.bottom - halfThickness, rect.width - thickness, thickness).contains(position)) return Alignment.bottomCenter;
+    if (Rect.fromLTWH(rect.left - halfThickness, rect.top + halfThickness, thickness, rect.height - thickness).contains(position)) return Alignment.centerLeft;
+    if (Rect.fromLTWH(rect.right - halfThickness, rect.top + halfThickness, thickness, rect.height - thickness).contains(position)) return Alignment.centerRight;
 
     return null;
   }
-
-  // ==========================================
-  // GESTIONE EVENTI RAW POINTER (Invocati dal Canvas)
-  // ==========================================
 
   // ==========================================
   // GESTIONE LAYER (Z-INDEX)
@@ -1188,15 +927,12 @@ class GraphProvider extends ChangeNotifier {
 
     _interactionMode = InteractionMode.clicking;
 
-    // 1. Tool Aggiunta Nodi/Container
     if (_activeTool == ToolType.node || _activeTool == ToolType.container) {
-      // Se clicchiamo sopra un nodo esistente, non ne creiamo uno nuovo ma lo selezioniamo
       _isTextEdit = false;
       _createNewNodeAt(position);
       return;
     }
 
-    // 2. Tool Creazione Archi
     if (_activeTool == ToolType.edge) {
       _isTextEdit = false;
       final node = _hitTestNodes(position);
@@ -1208,9 +944,7 @@ class GraphProvider extends ChangeNotifier {
       return;
     }
 
-    // 3. Tool Puntatore (Selezione, Drag, Resize)
     if (_activeTool == ToolType.pointer) {
-      // A. Ho colpito una maniglia di ridimensionamento?
       final handle = _hitTestResizeHandles(position);
       if (handle != null) {
         _isTextEdit = false;
@@ -1220,23 +954,11 @@ class GraphProvider extends ChangeNotifier {
         return;
       }
 
-      // C. Ho colpito un Arco?
-      if (trySelectEdgeAt(position)) {
-        _isTextEdit = false;
-        return;
-      }
-
-      // B. Ho colpito un Nodo?
+      // PRIORITÀ AI NODI: Cerchiamo prima se il click ha colpito un nodo
       final node = _hitTestNodes(position);
       if (node != null) {
-        // Se il nodo era già selezionato, forse stiamo cliccando sul testo.
-        // NON resettiamo _isTextEdit qui se il click è dentro il nodo,
-        // perché il TextField gestirà il suo stato.
-        // Tuttavia, se è un click per trascinare, lo resettiamo dopo.
-
         _interactionMode = InteractionMode.draggingNode;
         _interactingNodeId = node.id;
-
         if (!selection.contains(node.id)) {
           setSelection(node.id);
           _isTextEdit = false;
@@ -1244,7 +966,12 @@ class GraphProvider extends ChangeNotifier {
         return;
       }
 
-      // D. Ho cliccato nel vuoto: iniziamo la selezione rettangolare
+      // Se nessun nodo è stato colpito, cerchiamo un arco
+      if (trySelectEdgeAt(position)) {
+        _isTextEdit = false;
+        return;
+      }
+
       _isTextEdit = false;
       clearSelection();
       _interactionMode = InteractionMode.rectSelecting;
@@ -1265,7 +992,6 @@ class GraphProvider extends ChangeNotifier {
         updateDraftEdge(position);
         break;
       case InteractionMode.rectSelecting:
-        // Aggiorna le coordinate del rettangolo
         _currentPosition = position;
         Rect rect = Rect.fromPoints(_startPosition!, _currentPosition!);
         updateSelectionFromRect(rect);
@@ -1280,15 +1006,11 @@ class GraphProvider extends ChangeNotifier {
     bool message = false;
     if (_interactionMode == InteractionMode.creatingEdge) {
       message = finishEdge(position);
-    } else if (_interactionMode == InteractionMode.draggingNode &&
-        _interactingNodeId != null) {
+    } else if (_interactionMode == InteractionMode.draggingNode && _interactingNodeId != null) {
       handleNodeDrop(_interactingNodeId!);
-    } else if (_interactionMode == InteractionMode.resizingNode &&
-        _interactingNodeId != null) {
+    } else if (_interactionMode == InteractionMode.resizingNode && _interactingNodeId != null) {
       updateContainerChildren(_interactingNodeId!);
     }
-
-    // Resetta lo stato
     _interactionMode = InteractionMode.idle;
     _activeResizeHandle = null;
     _interactingNodeId = null;
@@ -1299,13 +1021,10 @@ class GraphProvider extends ChangeNotifier {
 
   void _applyResize(Offset rawDelta) {
     if (_interactingNodeId == null || _activeResizeHandle == null) return;
-
     final index = _nodes.indexWhere((n) => n.id == _interactingNodeId);
     if (index == -1) return;
 
     final node = _nodes[index];
-
-    // Convertiamo il delta tenendo conto dello zoom
     final deltaX = rawDelta.dx / zoomScale;
     final deltaY = rawDelta.dy / zoomScale;
 
@@ -1314,70 +1033,43 @@ class GraphProvider extends ChangeNotifier {
     double newX = node.position.dx;
     double newY = node.position.dy;
 
-    // Dimensioni minime di sicurezza
     const double minWidth = 150.0;
     const double minHeight = 100.0;
 
-    // 1. Asse X (Larghezza e Posizione Orizzontale)
-    if (_activeResizeHandle == Alignment.centerRight ||
-        _activeResizeHandle == Alignment.topRight ||
-        _activeResizeHandle == Alignment.bottomRight) {
+    if (_activeResizeHandle == Alignment.centerRight || _activeResizeHandle == Alignment.topRight || _activeResizeHandle == Alignment.bottomRight) {
       newWidth += deltaX;
-    } else if (_activeResizeHandle == Alignment.centerLeft ||
-        _activeResizeHandle == Alignment.topLeft ||
-        _activeResizeHandle == Alignment.bottomLeft) {
+    } else if (_activeResizeHandle == Alignment.centerLeft || _activeResizeHandle == Alignment.topLeft || _activeResizeHandle == Alignment.bottomLeft) {
       final proposedWidth = newWidth - deltaX;
       if (proposedWidth >= minWidth) {
         newWidth = proposedWidth;
-        newX += deltaX; // Se riduco da sinistra, il punto di origine avanza
+        newX += deltaX;
       }
     }
 
-    // 2. Asse Y (Altezza e Posizione Verticale)
-    if (_activeResizeHandle == Alignment.bottomCenter ||
-        _activeResizeHandle == Alignment.bottomLeft ||
-        _activeResizeHandle == Alignment.bottomRight) {
+    if (_activeResizeHandle == Alignment.bottomCenter || _activeResizeHandle == Alignment.bottomLeft || _activeResizeHandle == Alignment.bottomRight) {
       newHeight += deltaY;
-    } else if (_activeResizeHandle == Alignment.topCenter ||
-        _activeResizeHandle == Alignment.topLeft ||
-        _activeResizeHandle == Alignment.topRight) {
+    } else if (_activeResizeHandle == Alignment.topCenter || _activeResizeHandle == Alignment.topLeft || _activeResizeHandle == Alignment.topRight) {
       final proposedHeight = newHeight - deltaY;
       if (proposedHeight >= minHeight) {
         newHeight = proposedHeight;
-        newY += deltaY; // Se riduco dall'alto, il punto di origine scende
+        newY += deltaY;
       }
     }
 
-    // 3. Forziamo il blocco finale delle dimensioni minime
     newWidth = newWidth < minWidth ? minWidth : newWidth;
     newHeight = newHeight < minHeight ? minHeight : newHeight;
 
-    // 4. Aggiorniamo il nodo
-    _nodes[index] = node.copyWith(
-      size: Size(newWidth, newHeight),
-      position: Offset(newX, newY),
-    );
-
-    // ========================================================
-    // 5. NOVITÀ: Portiamo in primo piano gli elementi inglobati
-    // ========================================================
+    _nodes[index] = node.copyWith(size: Size(newWidth, newHeight), position: Offset(newX, newY));
+    _nodesMap[_interactingNodeId!] = _nodes[index];
+    _invalidateCache(pathsOnly: true);
     _bringOverlappingNodesToFront(_interactingNodeId!);
-
     notifyListeners();
   }
 
   void _createNewNodeAt(Offset position) {
     final isContainer = _activeTool == ToolType.container;
-    final nodeSize = isContainer
-        ? GraphNode.defaultContainerSize
-        : GraphNode.defaultNodeSize;
-
-    // Centra il nodo rispetto al click del mouse
-    final centeredPosition = Offset(
-      position.dx - nodeSize.width / 2,
-      position.dy - nodeSize.height / 2,
-    );
-
+    final nodeSize = isContainer ? GraphNode.defaultContainerSize : GraphNode.defaultNodeSize;
+    final centeredPosition = Offset(position.dx - nodeSize.width / 2, position.dy - nodeSize.height / 2);
     var nodeToAdd = GraphNode(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       name: isContainer ? 'New Container' : 'New Node',
@@ -1386,14 +1078,8 @@ class GraphProvider extends ChangeNotifier {
       oldSize: isContainer ? nodeSize : null,
       isContainer: isContainer,
     );
-
     addNode(nodeToAdd);
-
-    if (isContainer) {
-      autoAdoptNodes(nodeToAdd);
-    }
-
-    // Torna automaticamente al tool puntatore e seleziona il nuovo nodo
+    if (isContainer) autoAdoptNodes(nodeToAdd);
     setTool(ToolType.pointer);
     setSelection(nodeToAdd.id);
   }
@@ -1404,12 +1090,6 @@ class GraphProvider extends ChangeNotifier {
     setTool(tool);
   }
 
-  // ==========================================
-  // MOTORE DI GERARCHIA GEOMETRICA
-  // ==========================================
-  // ==========================================
-  // MOTORE DI GERARCHIA GEOMETRICA
-  // ==========================================
   void _recalculateHierarchyBasedOnGeometry() {
     Map<String, Rect> rects = {};
     for (var n in _nodes) {
@@ -1418,30 +1098,18 @@ class GraphProvider extends ChangeNotifier {
 
     for (int i = 0; i < _nodes.length; i++) {
       final node = _nodes[i];
-
-      // 1. PROTEZIONE COLLAPSE: Se il nodo si trova dentro un container collassato,
-      // la sua gerarchia è "congelata". Saltiamo il ricalcolo per lui.
-      if (_isNodeHiddenByCollapsedParent(node)) {
-        continue;
-      }
+      if (_isNodeHiddenByCollapsedParent(node)) continue;
 
       String? newParentId;
       double minArea = double.infinity;
 
       for (var container in _nodes) {
-        if (!container.isContainer || container.id == node.id) continue;
-
-        // Opzionale ma consigliato: un container attualmente collassato
-        // non dovrebbe inglobare nuovi elementi estranei.
-        if (container.isCollapsed) continue;
-
+        if (!container.isContainer || container.id == node.id || container.isCollapsed) continue;
         final cRect = rects[container.id]!;
         final nRect = rects[node.id]!;
-
         final inflatedCRect = cRect.inflate(0.5);
 
-        if (inflatedCRect.contains(nRect.topLeft) &&
-            inflatedCRect.contains(nRect.bottomRight)) {
+        if (inflatedCRect.contains(nRect.topLeft) && inflatedCRect.contains(nRect.bottomRight)) {
           final area = cRect.width * cRect.height;
           if (area < minArea) {
             minArea = area;
@@ -1452,81 +1120,52 @@ class GraphProvider extends ChangeNotifier {
 
       if (newParentId != null) {
         _nodes[i] = node.copyWith(parentId: newParentId);
+        _nodesMap[node.id] = _nodes[i];
       } else {
         _nodes[i] = node.copyWith(clearParent: true);
+        _nodesMap[node.id] = _nodes[i];
       }
     }
-
     _enforceParentChildZOrder();
   }
 
-  // HELPER: Controlla se il nodo ha un antenato attualmente collassato
   bool _isNodeHiddenByCollapsedParent(GraphNode node) {
     String? currentParentId = node.parentId;
     while (currentParentId != null) {
       final pIndex = _nodes.indexWhere((n) => n.id == currentParentId);
       if (pIndex == -1) break;
-      if (_nodes[pIndex].isCollapsed)
-        return true; // Trovato un nonno/padre chiuso!
+      if (_nodes[pIndex].isCollapsed) return true;
       currentParentId = _nodes[pIndex].parentId;
     }
     return false;
   }
 
-  // ==========================================
-  // NUOVO: LOGICA EXPLORER TOOL
-  // ==========================================
   Set<String> get explorerActiveNodes {
     if (_activeTool != ToolType.explorer || _hoveredNodeId == null) return {};
-
     Set<String> group = {_hoveredNodeId!};
-    for (var node in _nodes) {
-      if (_isAncestor(_hoveredNodeId!, node.id)) {
-        group.add(node.id);
-      }
-    }
-
+    for (var node in _nodes) if (_isAncestor(_hoveredNodeId!, node.id)) group.add(node.id);
     Set<String> active = Set.from(group);
-
     for (var edge in getAggregatedEdges()) {
-      if (group.contains(edge.sourceId)) {
-        active.add(edge.targetId);
-      }
-      if (group.contains(edge.targetId)) {
-        active.add(edge.sourceId);
-      }
+      if (group.contains(edge.sourceId)) active.add(edge.targetId);
+      if (group.contains(edge.targetId)) active.add(edge.sourceId);
     }
     for (var edge in _edges) {
-      if (group.contains(edge.sourceId)) {
-        active.add(edge.targetId);
-      }
-      if (group.contains(edge.targetId)) {
-        active.add(edge.sourceId);
-      }
+      if (group.contains(edge.sourceId)) active.add(edge.targetId);
+      if (group.contains(edge.targetId)) active.add(edge.sourceId);
     }
     return active;
   }
 
   Set<String> get explorerActiveEdges {
     if (_activeTool != ToolType.explorer || _hoveredNodeId == null) return {};
-
     Set<String> group = {_hoveredNodeId!};
-    for (var node in _nodes) {
-      if (_isAncestor(_hoveredNodeId!, node.id)) {
-        group.add(node.id);
-      }
-    }
-
+    for (var node in _nodes) if (_isAncestor(_hoveredNodeId!, node.id)) group.add(node.id);
     Set<String> activeEdges = {};
     for (var edge in getAggregatedEdges()) {
-      if (group.contains(edge.sourceId) || group.contains(edge.targetId)) {
-        activeEdges.add(edge.id);
-      }
+      if (group.contains(edge.sourceId) || group.contains(edge.targetId)) activeEdges.add(edge.id);
     }
     for (var edge in _edges) {
-      if (group.contains(edge.sourceId) || group.contains(edge.targetId)) {
-        activeEdges.add(edge.id);
-      }
+      if (group.contains(edge.sourceId) || group.contains(edge.targetId)) activeEdges.add(edge.id);
     }
     return activeEdges;
   }
