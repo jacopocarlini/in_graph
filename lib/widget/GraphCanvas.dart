@@ -175,7 +175,32 @@ class _GraphCanvasState extends State<GraphCanvas>
                                 child: Stack(
                                   clipBehavior: Clip.none,
                                   children: [
-                                    ...buildNodes(provider),
+                                    Selector<GraphProvider, List<GraphNode>>(
+                                      selector: (_, p) => p.visibleNodes,
+                                      shouldRebuild: (prev, next) {
+                                        if (prev.length != next.length) {
+                                          return true;
+                                        }
+                                        for (int i = 0; i < prev.length; i++) {
+                                          if (prev[i] != next[i]) return true;
+                                        }
+                                        return false;
+                                      },
+                                      builder: (context, visibleNodes, _) {
+                                        return Stack(
+                                          clipBehavior: Clip.none,
+                                          children: visibleNodes.map((node) {
+                                            return NodeWidget(
+                                              key: ValueKey(node.id),
+                                              node: node,
+                                              onTapOut: () {
+                                                _canvasFocusNode.requestFocus();
+                                              },
+                                            );
+                                          }).toList(),
+                                        );
+                                      },
+                                    ),
                                     Positioned.fill(
                                       child: IgnorePointer(
                                         child: CustomPaint(
@@ -190,9 +215,23 @@ class _GraphCanvasState extends State<GraphCanvas>
                                       (() {
                                         return buildGhost(activeTool, provider);
                                       })(),
-                                    if (provider.startPosition != null &&
-                                        provider.currentPosition != null)
-                                      buildRectSelection(provider),
+                                    Selector<GraphProvider,
+                                        ({Offset? start, Offset? current})>(
+                                      selector: (_, p) => (
+                                        start: p.startPosition,
+                                        current: p.currentPosition
+                                      ),
+                                      builder: (context, data, _) {
+                                        if (data.start != null &&
+                                            data.current != null) {
+                                          return buildRectSelection(
+                                            data.start!,
+                                            data.current!,
+                                          );
+                                        }
+                                        return const SizedBox.shrink();
+                                      },
+                                    ),
                                   ],
                                 ),
                               ),
@@ -333,52 +372,6 @@ class _GraphCanvasState extends State<GraphCanvas>
     );
   }
 
-  List<NodeWidget> buildNodes(GraphProvider provider) {
-    var nodesToRender = List<GraphNode>.from(provider.visibleNodes);
-    /*
-    int getDepth(GraphNode node) {
-      int depth = 0;
-      String? currentParentId = node.parentId;
-      while (currentParentId != null) {
-        depth++;
-        final parentIndex = provider.nodes.indexWhere(
-          (n) => n.id == currentParentId,
-        );
-        if (parentIndex == -1) break;
-        currentParentId = provider.nodes[parentIndex].parentId;
-      }
-      return depth;
-    }
-
-    nodesToRender.sort((a, b) {
-      final depthA = getDepth(a);
-      final depthB = getDepth(b);
-
-      // 1. Ordina per profondità (i parent sotto, i figli sopra)
-      if (depthA != depthB) return depthA.compareTo(depthB);
-
-      // 2. A parità di profondità, i container stanno sotto ai nodi normali
-      if (a.isContainer && !b.isContainer) return -1;
-      if (!a.isContainer && b.isContainer) return 1;
-
-      // 3. NUOVO: A parità di tutto il resto, chi sta più in fondo nella
-      // lista del provider (perché appena cliccato/mosso) viene disegnato sopra.
-      final indexA = provider.nodes.indexWhere((n) => n.id == a.id);
-      final indexB = provider.nodes.indexWhere((n) => n.id == b.id);
-      return indexA.compareTo(indexB);
-    });
-*/
-    return nodesToRender.map((node) {
-      return NodeWidget(
-        key: ValueKey(node.id),
-        node: node,
-        onTapOut: () {
-          _canvasFocusNode.requestFocus();
-        },
-      );
-    }).toList();
-  }
-
   NodeWidget buildGhost(ToolType activeTool, GraphProvider provider) {
     final isContainer = activeTool == ToolType.container;
     Size previewSize = isContainer
@@ -401,9 +394,9 @@ class _GraphCanvasState extends State<GraphCanvas>
     );
   }
 
-  Positioned buildRectSelection(GraphProvider provider) {
+  Positioned buildRectSelection(Offset start, Offset current) {
     return Positioned.fromRect(
-      rect: Rect.fromPoints(provider.startPosition!, provider.currentPosition!),
+      rect: Rect.fromPoints(start, current),
       child: Container(
         decoration: BoxDecoration(
           color: Colors.blue.withOpacity(0.1),

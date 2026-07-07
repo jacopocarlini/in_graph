@@ -51,11 +51,19 @@ class _NodeWidgetState extends State<NodeWidget> {
   @override
   Widget build(BuildContext context) {
     var node = widget.node;
-    final provider = context.watch<GraphProvider>();
-    final isSelected = provider.selection.contains(node.id);
-    final isHovered =
-        provider.hoveredNodeId == node.id &&
-        provider.activeTool == ToolType.edge;
+
+    final isSelected = context.select<GraphProvider, bool>(
+      (p) => p.selection.contains(node.id),
+    );
+    final activeTool = context.select<GraphProvider, ToolType>(
+      (p) => p.activeTool,
+    );
+    final isHovered = context.select<GraphProvider, bool>(
+      (p) => p.hoveredNodeId == node.id && p.activeTool == ToolType.edge,
+    );
+    final opacity = context.select<GraphProvider, double>(
+      (p) => _calculateOpacity(p, node),
+    );
 
     final targetWidth = node.size.width;
     final targetHeight = node.size.height;
@@ -73,7 +81,7 @@ class _NodeWidgetState extends State<NodeWidget> {
           left: node.position.dx,
           top: node.position.dy,
           child: Opacity(
-            opacity: _calculateOpacity(provider, node),
+            opacity: opacity,
             child: Stack(
               clipBehavior: Clip.none,
               children: [
@@ -95,9 +103,9 @@ class _NodeWidgetState extends State<NodeWidget> {
                             strokeWidth: 1.5,
                             borderRadius: 16,
                           ),
-                          child: buildNode(node, provider),
+                          child: buildNode(node, context),
                         )
-                      : buildNode(node, provider),
+                      : buildNode(node, context),
                 ),
 
                 // Rettangolo di selezione esterno (Blue Glow/Border)
@@ -123,8 +131,7 @@ class _NodeWidgetState extends State<NodeWidget> {
                 // ==========================================
                 // NUOVO: Maniglie e Cursori di Resize
                 // ==========================================
-                if (showResizeHandles &&
-                    provider.activeTool == ToolType.pointer)
+                if (showResizeHandles && activeTool == ToolType.pointer)
                   Positioned.fill(
                     // Chiamiamo il nuovo metodo
                     child: _buildContinuousResizeHandles(
@@ -144,7 +151,7 @@ class _NodeWidgetState extends State<NodeWidget> {
             top: node.position.dy + targetHeight + 4,
             child: SizedBox(
               width: targetWidth + 60,
-              child: _buildTextField(provider),
+              child: _buildTextField(context),
             ),
           ),
         ],
@@ -290,7 +297,7 @@ class _NodeWidgetState extends State<NodeWidget> {
     );
   }
 
-  Widget buildExpanded(GraphNode node, GraphProvider provider) {
+  Widget buildExpanded(GraphNode node, BuildContext context) {
     final targetWidth = node.isCollapsed
         ? GraphNode.defaultNodeSize.width
         : node.size.width;
@@ -308,7 +315,7 @@ class _NodeWidgetState extends State<NodeWidget> {
             children: [
               GestureDetector(
                 onTap: () {
-                  provider.toggleCollapse(node.id);
+                  context.read<GraphProvider>().toggleCollapse(node.id);
                 },
                 child: Container(
                   padding: const EdgeInsets.all(4),
@@ -345,7 +352,7 @@ class _NodeWidgetState extends State<NodeWidget> {
                         targetWidth -
                         60, // Evita che uscendo dal box rompa il layout
                   ),
-                  child: _buildTextField(provider),
+                  child: _buildTextField(context),
                 ),
               ),
             ],
@@ -355,15 +362,15 @@ class _NodeWidgetState extends State<NodeWidget> {
     );
   }
 
-  Widget buildNode(GraphNode node, GraphProvider provider) {
+  Widget buildNode(GraphNode node, BuildContext context) {
     if (node.isContainer && !node.isCollapsed) {
-      return buildExpanded(node, provider);
+      return buildExpanded(node, context);
     } else {
-      return buildCollapse(node, provider);
+      return buildCollapse(node, context);
     }
   }
 
-  Stack buildCollapse(GraphNode node, GraphProvider provider) {
+  Stack buildCollapse(GraphNode node, BuildContext context) {
     return Stack(
       children: [
         // Icona principale al centro del box
@@ -384,7 +391,7 @@ class _NodeWidgetState extends State<NodeWidget> {
                 GestureDetector(
                   onTap: () {
                     // Assicurati di avere questo metodo nel tuo provider per gestire il collapse
-                    provider.toggleCollapse(node.id);
+                    context.read<GraphProvider>().toggleCollapse(node.id);
                   },
                   child: Container(
                     padding: const EdgeInsets.all(4),
@@ -406,7 +413,8 @@ class _NodeWidgetState extends State<NodeWidget> {
     );
   }
 
-  Widget _buildTextField(GraphProvider provider) {
+  Widget _buildTextField(BuildContext context) {
+    final provider = context.read<GraphProvider>();
     var containerCollapsed =
         widget.node.isContainer && !widget.node.isCollapsed;
     return TextField(
