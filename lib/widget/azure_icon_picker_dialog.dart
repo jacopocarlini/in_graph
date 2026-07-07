@@ -91,7 +91,7 @@ class _NodeIconPickerDialogState extends State<NodeIconPickerDialog> {
                   if (snapshot.hasError) {
                     return Center(
                       child: Text(
-                        'Errore nel caricamento delle icone: ${snapshot.error}',
+                        'Error loading icons: ${snapshot.error}',
                       ),
                     );
                   }
@@ -108,7 +108,7 @@ class _NodeIconPickerDialogState extends State<NodeIconPickerDialog> {
 
                   if (filtered.isEmpty) {
                     return const Center(
-                      child: Text('Nessuna icona trovata con questo filtro.'),
+                      child: Text('No icons found with this filter.'),
                     );
                   }
 
@@ -180,7 +180,7 @@ class _NodeIconPickerDialogState extends State<NodeIconPickerDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Annulla'),
+          child: const Text('Cancel'),
         ),
       ],
     );

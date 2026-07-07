@@ -141,7 +141,7 @@ class _ExportImportMenu extends StatelessWidget {
           value: 'export_yaml',
           child: ListTile(
             leading: Icon(Icons.save_alt),
-            title: Text('Esporta YAML'),
+            title: Text('Export YAML'),
             dense: true,
           ),
         ),
@@ -149,7 +149,7 @@ class _ExportImportMenu extends StatelessWidget {
           value: 'import_yaml',
           child: ListTile(
             leading: Icon(Icons.upload_file),
-            title: Text('Importa YAML'),
+            title: Text('Import YAML'),
             dense: true,
           ),
         ),
@@ -158,15 +158,7 @@ class _ExportImportMenu extends StatelessWidget {
           value: 'export_png',
           child: ListTile(
             leading: Icon(Icons.image_outlined),
-            title: Text('Esporta PNG'),
-            dense: true,
-          ),
-        ),
-        const PopupMenuItem(
-          value: 'export_svg',
-          child: ListTile(
-            leading: Icon(Icons.code),
-            title: Text('Esporta SVG'),
+            title: Text('Export PNG'),
             dense: true,
           ),
         ),

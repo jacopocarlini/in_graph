@@ -38,7 +38,7 @@ class _GraphTreeSidebarState extends State<GraphTreeSidebar> {
             IconButton(
               icon: const Icon(Icons.keyboard_double_arrow_right),
               onPressed: () => setState(() => _isCollapsed = false),
-              tooltip: 'Espandi struttura',
+              tooltip: 'Expand structure',
             ),
           ],
         ),
@@ -84,7 +84,7 @@ class _GraphTreeSidebarState extends State<GraphTreeSidebar> {
                 const SizedBox(width: 8),
                 const Expanded(
                   child: Text(
-                    'Struttura',
+                    'Structure',
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 15,
@@ -97,7 +97,7 @@ class _GraphTreeSidebarState extends State<GraphTreeSidebar> {
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
                   onPressed: () => setState(() => _isCollapsed = true),
-                  tooltip: 'Comprimi',
+                  tooltip: 'Collapse',
                 ),
               ],
             ),
@@ -109,7 +109,7 @@ class _GraphTreeSidebarState extends State<GraphTreeSidebar> {
             child: rootNodes.isEmpty
                 ? const Center(
                     child: Text(
-                      'Nessun elemento nel grafo',
+                      'No items in the graph',
                       style: TextStyle(color: Colors.grey, fontSize: 13),
                     ),
                   )
@@ -196,7 +196,7 @@ class _GraphTreeSidebarState extends State<GraphTreeSidebar> {
                 Expanded(
                   child: Text(
                     node.name.trim().isEmpty
-                        ? (node.isContainer ? 'Container' : 'Nodo')
+                        ? (node.isContainer ? 'Container' : 'Node')
                         : node.name,
                     style: TextStyle(
                       fontSize: 13,

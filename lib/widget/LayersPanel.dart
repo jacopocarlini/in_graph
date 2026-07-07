@@ -50,11 +50,11 @@ class LayersPanel extends StatelessWidget {
             ),
           ),
 
-          // Legenda aggiornata (Primo Piano in alto, Sfondo in basso)
+          // Legenda aggiornata (Foreground in alto, Background in basso)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 8.0),
             child: Text(
-              "Primo Piano ▲ / ▼ Sfondo",
+              "Foreground ▲ / ▼ Background",
               style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
             ),
           ),
@@ -64,7 +64,7 @@ class LayersPanel extends StatelessWidget {
             child: reversedNodes.isEmpty
                 ? Center(
                     child: Text(
-                      "Nessun nodo",
+                      "No nodes",
                       style: TextStyle(color: Colors.grey.shade400),
                     ),
                   )

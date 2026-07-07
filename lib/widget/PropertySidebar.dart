@@ -107,7 +107,7 @@ class _PropertySidebarState extends State<PropertySidebar> {
         child: Padding(
           padding: EdgeInsets.all(16.0),
           child: Text(
-            "Seleziona un elemento",
+            "Select an item",
             style: TextStyle(color: Colors.grey),
           ),
         ),

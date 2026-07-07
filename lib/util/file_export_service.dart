@@ -39,7 +39,7 @@ class FileExportService {
 
     // CHANGED: Removed .platform
     final String? outputFile = await FilePicker.saveFile(
-      dialogTitle: dialogTitle ?? 'Salva file',
+      dialogTitle: dialogTitle ?? 'Save file',
       fileName: fileName,
       type: extension != null ? FileType.custom : FileType.any,
       allowedExtensions: extension != null ? [extension] : null,
@@ -57,7 +57,7 @@ class FileExportService {
   }) async {
     // CHANGED: Removed .platform
     final result = await FilePicker.pickFiles(
-      dialogTitle: dialogTitle ?? 'Seleziona file',
+      dialogTitle: dialogTitle ?? 'Select file',
       type: allowedExtensions != null ? FileType.custom : FileType.any,
       allowedExtensions: allowedExtensions,
       withData: true,
