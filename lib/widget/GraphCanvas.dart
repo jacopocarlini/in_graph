@@ -325,25 +325,37 @@ class _GraphCanvasState extends State<GraphCanvas>
         provider.deleteSelected();
         return KeyEventResult.handled;
       }
-      if (event.character == '1') {
+      if (event.logicalKey == LogicalKeyboardKey.digit1 ||
+          event.logicalKey == LogicalKeyboardKey.numpad1) {
         provider.setTool(ToolType.pointer);
+        return KeyEventResult.handled;
       }
-      if (event.character == '2') {
+      if (event.logicalKey == LogicalKeyboardKey.digit2 ||
+          event.logicalKey == LogicalKeyboardKey.numpad2) {
         provider.setTool(ToolType.pan);
+        return KeyEventResult.handled;
       }
-      if (event.character == '3') {
+      if (event.logicalKey == LogicalKeyboardKey.digit3 ||
+          event.logicalKey == LogicalKeyboardKey.numpad3) {
         provider.setTool(ToolType.node);
+        return KeyEventResult.handled;
       }
-      if (event.character == '4') {
+      if (event.logicalKey == LogicalKeyboardKey.digit4 ||
+          event.logicalKey == LogicalKeyboardKey.numpad4) {
         provider.setTool(ToolType.container);
+        return KeyEventResult.handled;
       }
-      if (event.character == '5') {
+      if (event.logicalKey == LogicalKeyboardKey.digit5 ||
+          event.logicalKey == LogicalKeyboardKey.numpad5) {
         provider.setTool(ToolType.edge);
         provider.clearSelection();
+        return KeyEventResult.handled;
       }
-      if (event.character == '6') {
+      if (event.logicalKey == LogicalKeyboardKey.digit6 ||
+          event.logicalKey == LogicalKeyboardKey.numpad6) {
         provider.setTool(ToolType.explorer);
         provider.clearSelection();
+        return KeyEventResult.handled;
       }
     }
     return KeyEventResult.ignored;

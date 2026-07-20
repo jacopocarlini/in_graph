@@ -127,22 +127,28 @@ class GraphProvider extends ChangeNotifier {
   void updateCurrentPosition(Offset position) {
     if (_currentPosition == position) return;
     _currentPosition = position;
-    _updateHoverState(position);
+    final hoverChanged = _updateHoverState(position);
+    final shouldUpdateGhost =
+        _activeTool == ToolType.node || _activeTool == ToolType.container;
+
+    if (hoverChanged || shouldUpdateGhost) {
+      notifyListeners();
+    }
   }
 
-  void _updateHoverState(Offset position) {
+  bool _updateHoverState(Offset position) {
     // Gestione Hover per il tool Edge o Explorer
     if (_activeTool == ToolType.edge || _activeTool == ToolType.explorer) {
       final hitNode = _hitTestNodes(position);
       if (_hoveredNodeId != hitNode?.id) {
         _hoveredNodeId = hitNode?.id;
-        notifyListeners();
+        return true;
       }
     } else if (_hoveredNodeId != null) {
       _hoveredNodeId = null;
-      notifyListeners();
+      return true;
     }
-    // Rimosso il notifyListeners() incondizionato nel ramo else
+    return false;
   }
 
   // ==========================================
