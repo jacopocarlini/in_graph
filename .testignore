@@ -1,0 +1,54 @@
+# Test Reports and Screenshots
+.test-reports/
+.screenshots/
+.regression-tests/
+coverage/
+
+# Test coverage files
+*.lcov
+.dartignore
+
+# Flutter
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+pubspec.lock
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.log
+temp/
+tmp/
+
+# Build artifacts
+*.apk
+*.ipa
+*.app
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Platform specific
+macos/Flutter/Flutter-Release.xcconfig
+ios/Flutter/Flutter-Release.xcconfig
+
+# Private files
+.env
+secrets.json
+

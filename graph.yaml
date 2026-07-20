@@ -1,0 +1,1167 @@
+nodes:
+  - id: "ctr_0ubHjSP2DZEZhpUuMQsR5"
+    name: "Nexi"
+    position:
+      dx: 2912
+      dy: 2192
+    size:
+      width: 512
+      height: 400
+    oldSize: null
+    parentId: null
+    isCollapsed: false
+    isContainer: true
+    icon:
+      codePoint: 59110
+      fontFamily: "MaterialIcons"
+      fontPackage: null
+    iconAssetPath: "aws-containers-redhat-openshift-service-on-aws"
+    color: 4288585374
+    borderStyle: "solid"
+  - id: "ctr_35R0oatdN5v4n0T8u4RpW"
+    name: "Ricevute PDF"
+    position:
+      dx: 1456
+      dy: 1872
+    size:
+      width: 704
+      height: 672
+    oldSize: null
+    parentId: null
+    isCollapsed: false
+    isContainer: true
+    icon:
+      codePoint: 59110
+      fontFamily: "MaterialIcons"
+      fontPackage: null
+    iconAssetPath: null
+    color: 4288585374
+    borderStyle: "solid"
+  - id: "ctr_3o8bMJZwdQvVYO1tm5igS"
+    name: "ACA"
+    position:
+      dx: 2480
+      dy: 3296
+    size:
+      width: 160
+      height: 112
+    oldSize: null
+    parentId: null
+    isCollapsed: false
+    isContainer: true
+    icon:
+      codePoint: 59110
+      fontFamily: "MaterialIcons"
+      fontPackage: null
+    iconAssetPath: null
+    color: 4288585374
+    borderStyle: "solid"
+  - id: "ctr_5KdDpfORjJd3iY50w77VZ"
+    name: "Authorizer"
+    position:
+      dx: 3696
+      dy: 2832
+    size:
+      width: 384
+      height: 128
+    oldSize: null
+    parentId: null
+    isCollapsed: false
+    isContainer: true
+    icon:
+      codePoint: 59110
+      fontFamily: "MaterialIcons"
+      fontPackage: null
+    iconAssetPath: null
+    color: 4288585374
+    borderStyle: "solid"
+  - id: "ctr_6kll1l5TiyBpBGi7qPNtP"
+    name: "GPD"
+    position:
+      dx: 1616
+      dy: 2704
+    size:
+      width: 816
+      height: 544
+    oldSize: null
+    parentId: null
+    isCollapsed: false
+    isContainer: true
+    icon:
+      codePoint: 59110
+      fontFamily: "MaterialIcons"
+      fontPackage: null
+    iconAssetPath: null
+    color: 4288585374
+    borderStyle: "solid"
+  - id: "ctr_6wO44zX4AjP0zHcjHdneF"
+    name: "checkout"
+    position:
+      dx: 4624
+      dy: 2544
+    size:
+      width: 400
+      height: 368
+    oldSize: null
+    parentId: null
+    isCollapsed: false
+    isContainer: true
+    icon:
+      codePoint: 59110
+      fontFamily: "MaterialIcons"
+      fontPackage: null
+    iconAssetPath: null
+    color: 4288585374
+    borderStyle: "solid"
+  - id: "ctr_9nEBzHCYdSiC9tLwPCoMb"
+    name: "Stampa Avvisi (printit)"
+    position:
+      dx: 2880
+      dy: 3824
+    size:
+      width: 576
+      height: 448
+    oldSize: null
+    parentId: null
+    isCollapsed: false
+    isContainer: true
+    icon:
+      codePoint: 59110
+      fontFamily: "MaterialIcons"
+      fontPackage: null
+    iconAssetPath: null
+    color: 4288585374
+    borderStyle: "solid"
+  - id: "ctr_A8ApeR742o4uG4qqerIcI"
+    name: "Selfcare"
+    position:
+      dx: 3536
+      dy: 3120
+    size:
+      width: 464
+      height: 288
+    oldSize: null
+    parentId: null
+    isCollapsed: false
+    isContainer: true
+    icon:
+      codePoint: 59110
+      fontFamily: "MaterialIcons"
+      fontPackage: null
+    iconAssetPath: null
+    color: 4288585374
+    borderStyle: "solid"
+  - id: "ctr_CQt9DI55op4GGeVUSyNXD"
+    name: "wallet"
+    position:
+      dx: 5184
+      dy: 2576
+    size:
+      width: 224
+      height: 160
+    oldSize: null
+    parentId: null
+    isCollapsed: false
+    isContainer: true
+    icon:
+      codePoint: 59110
+      fontFamily: "MaterialIcons"
+      fontPackage: null
+    iconAssetPath: null
+    color: 4288585374
+    borderStyle: "solid"
+  - id: "ctr_EWtrNY2gFpX8CkAQOBYCX"
+    name: "reporting"
+    position:
+      dx: 2064
+      dy: 3008
+    size:
+      width: 352
+      height: 160
+    oldSize: null
+    parentId: null
+    isCollapsed: false
+    isContainer: true
+    icon:
+      codePoint: 59110
+      fontFamily: "MaterialIcons"
+      fontPackage: null
+    iconAssetPath: null
+    color: 4288585374
+    borderStyle: "solid"
+  - id: "ctr_F9FDaU5ufYG9ziHcuLuCe"
+    name: "WISP"
+    position:
+      dx: 2880
+      dy: 2672
+    size:
+      width: 496
+      height: 320
+    oldSize: null
+    parentId: null
+    isCollapsed: false
+    isContainer: true
+    icon:
+      codePoint: 59110
+      fontFamily: "MaterialIcons"
+      fontPackage: null
+    iconAssetPath: null
+    color: 4288585374
+    borderStyle: "solid"
+  - id: "ctr_IcIUBp5YDcCrsmnACWPLh"
+    name: "Opzioni di Pagamento"
+    position:
+      dx: 3120
+      dy: 3488
+    size:
+      width: 240
+      height: 160
+    oldSize: null
+    parentId: null
+    isCollapsed: false
+    isContainer: true
+    icon:
+      codePoint: 59110
+      fontFamily: "MaterialIcons"
+      fontPackage: null
+    iconAssetPath: null
+    color: 4288585374
+    borderStyle: "solid"
+  - id: "ctr_IsWv9Fn9WkVifgsj2O2aL"
+    name: "pdf engine"
+    position:
+      dx: 1472
+      dy: 1952
+    size:
+      width: 224
+      height: 160
+    oldSize: null
+    parentId: null
+    isCollapsed: false
+    isContainer: true
+    icon:
+      codePoint: 59110
+      fontFamily: "MaterialIcons"
+      fontPackage: null
+    iconAssetPath: null
+    color: 4288585374
+    borderStyle: "solid"
+  - id: "ctr_JUexMmRVhuciAb9FYfJjn"
+    name: "Biz Events"
+    position:
+      dx: 2224
+      dy: 2000
+    size:
+      width: 400
+      height: 576
+    oldSize: null
+    parentId: null
+    isCollapsed: false
+    isContainer: true
+    icon:
+      codePoint: 59110
+      fontFamily: "MaterialIcons"
+      fontPackage: null
+    iconAssetPath: null
+    color: 4288585374
+    borderStyle: "solid"
+  - id: "ctr_Jm2Bqqg1kDpurGuPndWAK"
+    name: "ApiConfig"
+    position:
+      dx: 2752
+      dy: 3136
+    size:
+      width: 608
+      height: 320
+    oldSize: null
+    parentId: null
+    isCollapsed: false
+    isContainer: true
+    icon:
+      codePoint: 59110
+      fontFamily: "MaterialIcons"
+      fontPackage: null
+    iconAssetPath: null
+    color: 4288585374
+    borderStyle: "solid"
+  - id: "ctr_JnoSAFFAEgiXrWbW9AKn6"
+    name: "FdR"
+    position:
+      dx: 1712
+      dy: 3456
+    size:
+      width: 656
+      height: 336
+    oldSize: null
+    parentId: null
+    isCollapsed: false
+    isContainer: true
+    icon:
+      codePoint: 59110
+      fontFamily: "MaterialIcons"
+      fontPackage: null
+    iconAssetPath: null
+    color: 4288585374
+    borderStyle: "solid"
+  - id: "ctr_L3akZ3zrDq3HDAQc0wQKl"
+    name: "eCommerce"
+    position:
+      dx: 4640
+      dy: 2976
+    size:
+      width: 1056
+      height: 704
+    oldSize: null
+    parentId: null
+    isCollapsed: false
+    isContainer: true
+    icon:
+      codePoint: 59110
+      fontFamily: "MaterialIcons"
+      fontPackage: null
+    iconAssetPath: null
+    color: 4288585374
+    borderStyle: "solid"
+  - id: "ctr_McdVc8UD0uk7TMPtfa7ae"
+    name: "Nodo"
+    position:
+      dx: 2432
+      dy: 3632
+    size:
+      width: 368
+      height: 240
+    oldSize: null
+    parentId: null
+    isCollapsed: false
+    isContainer: true
+    icon:
+      codePoint: 59110
+      fontFamily: "MaterialIcons"
+      fontPackage: null
+    iconAssetPath: null
+    color: 4288585374
+    borderStyle: "solid"
+  - id: "ctr_NDi7ACjfsuAusnC7WQXKg"
+    name: "APIM"
+    position:
+      dx: 3488
+      dy: 3600
+    size:
+      width: 448
+      height: 272
+    oldSize: null
+    parentId: null
+    isCollapsed: false
+    isContainer: true
+    icon:
+      codePoint: 59110
+      fontFamily: "MaterialIcons"
+      fontPackage: null
+    iconAssetPath: "azure-app-services-api-mgt-services"
+    color: 4288585374
+    borderStyle: "solid"
+  - id: "ctr_SJOHYfWYNylgp9tP70Hyf"
+    name: "Shared"
+    position:
+      dx: 3520
+      dy: 2688
+    size:
+      width: 576
+      height: 288
+    oldSize: null
+    parentId: null
+    isCollapsed: false
+    isContainer: true
+    icon:
+      codePoint: 59110
+      fontFamily: "MaterialIcons"
+      fontPackage: null
+    iconAssetPath: null
+    color: 4288585374
+    borderStyle: "solid"
+  - id: "ctr_UdyBt79mAA4ea12rKuqdY"
+    name: "Nodo nexi"
+    position:
+      dx: 3152
+      dy: 2240
+    size:
+      width: 208
+      height: 288
+    oldSize: null
+    parentId: null
+    isCollapsed: false
+    isContainer: true
+    icon:
+      codePoint: 59110
+      fontFamily: "MaterialIcons"
+      fontPackage: null
+    iconAssetPath: null
+    color: 4288585374
+    borderStyle: "solid"
+  - id: "ctr_XA0HKaTh3nmlTtWOdz9vP"
+    name: "GEC"
+    position:
+      dx: 4080
+      dy: 3072
+    size:
+      width: 512
+      height: 288
+    oldSize: null
+    parentId: null
+    isCollapsed: false
+    isContainer: true
+    icon:
+      codePoint: 59110
+      fontFamily: "MaterialIcons"
+      fontPackage: null
+    iconAssetPath: null
+    color: 4288585374
+    borderStyle: "solid"
+  - id: "ctr_d35652HKJyZkOQUGzvmNw"
+    name: "pdf engine"
+    position:
+      dx: 3216
+      dy: 3936
+    size:
+      width: 224
+      height: 160
+    oldSize: null
+    parentId: null
+    isCollapsed: false
+    isContainer: true
+    icon:
+      codePoint: 59110
+      fontFamily: "MaterialIcons"
+      fontPackage: null
+    iconAssetPath: null
+    color: 4288585374
+    borderStyle: "solid"
+  - id: "ctr_dCVCogpgbDeiZXwn9OReg"
+    name: "Policy"
+    position:
+      dx: 3696
+      dy: 3696
+    size:
+      width: 224
+      height: 160
+    oldSize: null
+    parentId: null
+    isCollapsed: false
+    isContainer: true
+    icon:
+      codePoint: 59110
+      fontFamily: "MaterialIcons"
+      fontPackage: null
+    iconAssetPath: "azure-mgt-governance-policy"
+    color: 4288585374
+    borderStyle: "solid"
+  - id: "ctr_mSVXPn3UqTQWyDYQCDYhZ"
+    name: "Upload"
+    position:
+      dx: 1648
+      dy: 2768
+    size:
+      width: 192
+      height: 272
+    oldSize: null
+    parentId: null
+    isCollapsed: false
+    isContainer: true
+    icon:
+      codePoint: 59110
+      fontFamily: "MaterialIcons"
+      fontPackage: null
+    iconAssetPath: null
+    color: 4288585374
+    borderStyle: "solid"
+  - id: "icn_03uGJzeVFbwXmcvc3o26G"
+    name: "selfcare (Area Riservata)"
+    position:
+      dx: 3664
+      dy: 3440
+    size:
+      width: 80
+      height: 80
+    oldSize: null
+    parentId: null
+    isCollapsed: false
+    isContainer: false
+    icon:
+      codePoint: 59110
+      fontFamily: "MaterialIcons"
+      fontPackage: null
+    iconAssetPath: "generic-application"
+    color: 4288585374
+    borderStyle: "solid"
+  - id: "icn_05ynVutNsKoCofZLButs9"
+    name: "notifier"
+    position:
+      dx: 1968
+      dy: 2192
+    size:
+      width: 80
+      height: 80
+    oldSize: null
+    parentId: null
+    isCollapsed: false
+    isContainer: false
+    icon:
+      codePoint: 59110
+      fontFamily: "MaterialIcons"
+      fontPackage: null
+    iconAssetPath: "azure-compute-function-apps"
+    color: 4288585374
+    borderStyle: "solid"
+  - id: "icn_0jjEOknoJpsGxNOCgPthd"
+    name: "db"
+    position:
+      dx: 1696
+      dy: 2192
+    size:
+      width: 64
+      height: 64
+    oldSize: null
+    parentId: null
+    isCollapsed: false
+    isContainer: false
+    icon:
+      codePoint: 59110
+      fontFamily: "MaterialIcons"
+      fontPackage: null
+    iconAssetPath: "azure-databases-cosmos-db"
+    color: 4288585374
+    borderStyle: "solid"
+  - id: "icn_0uNKDenu7eVUY6SCLRdDn"
+    name: "soap-converter"
+    position:
+      dx: 2992
+      dy: 2688
+    size:
+      width: 80
+      height: 80
+    oldSize: null
+    parentId: null
+    isCollapsed: false
+    isContainer: false
+    icon:
+      codePoint: 59110
+      fontFamily: "MaterialIcons"
+      fontPackage: null
+    iconAssetPath: "backend-spring-boot"
+    color: 4288585374
+    borderStyle: "solid"
+  - id: "icn_11n7eWD6H5OyYTwtaSdg3"
+    name: "generator"
+    position:
+      dx: 3008
+      dy: 3872
+    size:
+      width: 80
+      height: 80
+    oldSize: null
+    parentId: null
+    isCollapsed: false
+    isContainer: false
+    icon:
+      codePoint: 59110
+      fontFamily: "MaterialIcons"
+      fontPackage: null
+    iconAssetPath: "backend-spring-boot"
+    color: 4288585374
+    borderStyle: "solid"
+  - id: "icn_2gaOnMsbHs4vK2vbnUDWf"
+    name: "auth-service"
+    position:
+      dx: 4672
+      dy: 2608
+    size:
+      width: 80
+      height: 80
+    oldSize: null
+    parentId: null
+    isCollapsed: false
+    isContainer: false
+    icon:
+      codePoint: 59110
+      fontFamily: "MaterialIcons"
+      fontPackage: null
+    iconAssetPath: "backend-spring"
+    color: 4288585374
+    borderStyle: "solid"
+  - id: "icn_3mfloFWllMhHWN4N7ilLh"
+    name: "fe"
+    position:
+      dx: 2912
+      dy: 3200
+    size:
+      width: 80
+      height: 80
+    oldSize: null
+    parentId: null
+    isCollapsed: false
+    isContainer: false
+    icon:
+      codePoint: 59110
+      fontFamily: "MaterialIcons"
+      fontPackage: null
+    iconAssetPath: "frontend-frameworks-react"
+    color: 4288585374
+    borderStyle: "solid"
+  - id: "icn_3x8GsygGaIVD4aW0KYdtO"
+    name: "ftp-sa"
+    position:
+      dx: 1664
+      dy: 2816
+    size:
+      width: 80
+      height: 80
+    oldSize: null
+    parentId: null
+    isCollapsed: false
+    isContainer: false
+    icon:
+      codePoint: 59110
+      fontFamily: "MaterialIcons"
+      fontPackage: null
+    iconAssetPath: "azure-storage-storage-accounts"
+    color: 4288585374
+    borderStyle: "solid"
+  - id: "icn_4bZjNCaKaWIj1O0BhpK2p"
+    name: "fdr-sa"
+    position:
+      dx: 2256
+      dy: 3680
+    size:
+      width: 80
+      height: 80
+    oldSize: null
+    parentId: null
+    isCollapsed: false
+    isContainer: false
+    icon:
+      codePoint: 59110
+      fontFamily: "MaterialIcons"
+      fontPackage: null
+    iconAssetPath: "azure-storage-storage-accounts"
+    color: 4288585374
+    borderStyle: "solid"
+  - id: "icn_4dVuXz91CYKBkyUB0ghJw"
+    name: "authorizer-fn"
+    position:
+      dx: 3968
+      dy: 2864
+    size:
+      width: 80
+      height: 80
+    oldSize: null
+    parentId: null
+    isCollapsed: false
+    isContainer: false
+    icon:
+      codePoint: 59110
+      fontFamily: "MaterialIcons"
+      fontPackage: null
+    iconAssetPath: "azure-compute-function-apps"
+    color: 4288585374
+    borderStyle: "solid"
+  - id: "icn_5DfoME13iJo4oBbFgyh8d"
+    name: "gpd reporting sync"
+    position:
+      dx: 2272
+      dy: 3056
+    size:
+      width: 80
+      height: 80
+    oldSize: null
+    parentId: null
+    isCollapsed: false
+    isContainer: false
+    icon:
+      codePoint: 59110
+      fontFamily: "MaterialIcons"
+      fontPackage: null
+    iconAssetPath: "azure-compute-function-apps"
+    color: 4288585374
+    borderStyle: "solid"
+  - id: "icn_5mySn8KN13aIM4AHCWsnL"
+    name: "fe"
+    position:
+      dx: 4880
+      dy: 2608
+    size:
+      width: 80
+      height: 80
+    oldSize: null
+    parentId: null
+    isCollapsed: false
+    isContainer: false
+    icon:
+      codePoint: 59110
+      fontFamily: "MaterialIcons"
+      fontPackage: null
+    iconAssetPath: "frontend-frameworks-react"
+    color: 4288585374
+    borderStyle: "solid"
+  - id: "icn_69yExkmVBehFynk9zFoDx"
+    name: "datastore"
+    position:
+      dx: 1968
+      dy: 1904
+    size:
+      width: 80
+      height: 80
+    oldSize: null
+    parentId: null
+    isCollapsed: false
+    isContainer: false
+    icon:
+      codePoint: 59110
+      fontFamily: "MaterialIcons"
+      fontPackage: null
+    iconAssetPath: "azure-compute-function-apps"
+    color: 4288585374
+    borderStyle: "solid"
+  - id: "icn_7Y6DgaMtkXUizpuWLJGA4"
+    name: "Azure Storage Accounts"
+    position:
+      dx: 3104
+      dy: 4080
+    size:
+      width: 80
+      height: 80
+    oldSize: null
+    parentId: null
+    isCollapsed: false
+    isContainer: false
+    icon:
+      codePoint: 59110
+      fontFamily: "MaterialIcons"
+      fontPackage: null
+    iconAssetPath: "azure-storage-storage-accounts"
+    color: 4288585374
+    borderStyle: "solid"
+  - id: "icn_8JYDOWTyc7g29YwGwsc6W"
+    name: "config"
+    position:
+      dx: 3792
+      dy: 2864
+    size:
+      width: 80
+      height: 80
+    oldSize: null
+    parentId: null
+    isCollapsed: false
+    isContainer: false
+    icon:
+      codePoint: 59110
+      fontFamily: "MaterialIcons"
+      fontPackage: null
+    iconAssetPath: "backend-spring-boot"
+    color: 4288585374
+    borderStyle: "solid"
+  - id: "icn_8UnioVwa30ahdOIoInzfb"
+    name: "db"
+    position:
+      dx: 1840
+      dy: 3120
+    size:
+      width: 80
+      height: 80
+    oldSize: null
+    parentId: null
+    isCollapsed: false
+    isContainer: false
+    icon:
+      codePoint: 59110
+      fontFamily: "MaterialIcons"
+      fontPackage: null
+    iconAssetPath: "azure-databases-postgresql-server"
+    color: 4288585374
+    borderStyle: "solid"
+  - id: "icn_9NUtY0va39AUvFqOQtMxl"
+    name: "refresh Cron Job"
+    position:
+      dx: 3184
+      dy: 3152
+    size:
+      width: 32
+      height: 32
+    oldSize: null
+    parentId: null
+    isCollapsed: false
+    isContainer: false
+    icon:
+      codePoint: 59110
+      fontFamily: "MaterialIcons"
+      fontPackage: null
+    iconAssetPath: "generic-cron-job"
+    color: 4288585374
+    borderStyle: "solid"
+  - id: "icn_AAxM1aeXGf27zttqOc0IQ"
+    name: "payments"
+    position:
+      dx: 1920
+      dy: 2912
+    size:
+      width: 80
+      height: 80
+    oldSize: null
+    parentId: null
+    isCollapsed: false
+    isContainer: false
+    icon:
+      codePoint: 59110
+      fontFamily: "MaterialIcons"
+      fontPackage: null
+    iconAssetPath: "backend-spring-boot"
+    color: 4288585374
+    borderStyle: "solid"
+  - id: "icn_AyLCgaUVX2vb162UhPLlw"
+    name: "pm-ingestion"
+    position:
+      dx: 2416
+      dy: 2080
+    size:
+      width: 80
+      height: 80
+    oldSize: null
+    parentId: null
+    isCollapsed: false
+    isContainer: false
+    icon:
+      codePoint: 59110
+      fontFamily: "MaterialIcons"
+      fontPackage: null
+    iconAssetPath: "backend-spring-boot"
+    color: 4288585374
+    borderStyle: "solid"
+  - id: "icn_Bx5dxgsVUyVXrUArnghQc"
+    name: "subkey"
+    position:
+      dx: 3616
+      dy: 3664
+    size:
+      width: 80
+      height: 80
+    oldSize: null
+    parentId: null
+    isCollapsed: false
+    isContainer: false
+    icon:
+      codePoint: 59110
+      fontFamily: "MaterialIcons"
+      fontPackage: null
+    iconAssetPath: "azure-general-subscription"
+    color: 4288585374
+    borderStyle: "solid"
+  - id: "icn_CeqIem9Rh0QQNeP0r4oAA"
+    name: "redis-cache"
+    position:
+      dx: 3792
+      dy: 2704
+    size:
+      width: 80
+      height: 80
+    oldSize: null
+    parentId: null
+    isCollapsed: false
+    isContainer: false
+    icon:
+      codePoint: 59110
+      fontFamily: "MaterialIcons"
+      fontPackage: null
+    iconAssetPath: "databases-redis"
+    color: 4288585374
+    borderStyle: "solid"
+  - id: "icn_D5tVOSztYENpTZvEhqcvw"
+    name: "pagopa-nodo-cfg-sync"
+    position:
+      dx: 2688
+      dy: 3664
+    size:
+      width: 64
+      height: 64
+    oldSize: null
+    parentId: null
+    isCollapsed: false
+    isContainer: false
+    icon:
+      codePoint: 59110
+      fontFamily: "MaterialIcons"
+      fontPackage: null
+    iconAssetPath: "backend-spring-boot"
+    color: 4288585374
+    borderStyle: "solid"
+  - id: "icn_F1ykd6nLJgwdR2YvoI55E"
+    name: "pdf-engine"
+    position:
+      dx: 3344
+      dy: 3984
+    size:
+      width: 80
+      height: 80
+    oldSize: null
+    parentId: null
+    isCollapsed: false
+    isContainer: false
+    icon:
+      codePoint: 59110
+      fontFamily: "MaterialIcons"
+      fontPackage: null
+    iconAssetPath: "languages-nodejs"
+    color: 4288585374
+    borderStyle: "solid"
+  - id: "icn_FbJHEtmkDdfo0cVG7NW27"
+    name: "converter-ts"
+    position:
+      dx: 3248
+      dy: 2688
+    size:
+      width: 80
+      height: 80
+    oldSize: null
+    parentId: null
+    isCollapsed: false
+    isContainer: false
+    icon:
+      codePoint: 59110
+      fontFamily: "MaterialIcons"
+      fontPackage: null
+    iconAssetPath: "backend-spring-boot"
+    color: 4288585374
+    borderStyle: "solid"
+  - id: "icn_FnEcI50U8bDiCWLqxSOK7"
+    name: "converter"
+    position:
+      dx: 3200
+      dy: 2864
+    size:
+      width: 80
+      height: 80
+    oldSize: null
+    parentId: null
+    isCollapsed: false
+    isContainer: false
+    icon:
+      codePoint: 59110
+      fontFamily: "MaterialIcons"
+      fontPackage: null
+    iconAssetPath: "backend-spring-boot"
+    color: 4288585374
+    borderStyle: "solid"
+  - id: "icn_FrjsUy18poYSQV2dPX7v7"
+    name: "db postgres"
+    position:
+      dx: 2976
+      dy: 2432
+    size:
+      width: 80
+      height: 80
+    oldSize: null
+    parentId: null
+    isCollapsed: false
+    isContainer: false
+    icon:
+      codePoint: 59110
+      fontFamily: "MaterialIcons"
+      fontPackage: null
+    iconAssetPath: "databases-postgresql"
+    color: 4288585374
+    borderStyle: "solid"
+  - id: "icn_GiVFC1u2YOSTy7l1EKzre"
+    name: "pagopa-nodo-cfg-data-migration"
+    position:
+      dx: 2592
+      dy: 3776
+    size:
+      width: 80
+      height: 80
+    oldSize: null
+    parentId: null
+    isCollapsed: false
+    isContainer: false
+    icon:
+      codePoint: 59110
+      fontFamily: "MaterialIcons"
+      fontPackage: null
+    iconAssetPath: "generic-application"
+    color: 4288585374
+    borderStyle: "solid"
+  - id: "shp_c66wTZKA5ZOxw8NACUq5X"
+    name: "One-Identity"
+    position:
+      dx: 4464
+      dy: 2688
+    size:
+      width: 128
+      height: 112
+    oldSize: null
+    parentId: null
+    isCollapsed: false
+    isContainer: false
+    icon:
+      codePoint: 59110
+      fontFamily: "MaterialIcons"
+      fontPackage: null
+    iconAssetPath: null
+    color: 4288585374
+    borderStyle: "solid"
+  - id: "shp_gN6s94bIbqE5AlOounMra"
+    name: "Legenda"
+    position:
+      dx: 4160
+      dy: 3664
+    size:
+      width: 448
+      height: 176
+    oldSize: null
+    parentId: null
+    isCollapsed: false
+    isContainer: false
+    icon:
+      codePoint: 59110
+      fontFamily: "MaterialIcons"
+      fontPackage: null
+    iconAssetPath: null
+    color: 4288585374
+    borderStyle: "dashed"
+  - id: "sn_27h9Er3tPf9bHWhuk9IJR"
+    name: "I seguenti progetti dispongono di collegamenti indiretti con l'autorizzatore tramite le policy APIM:"
+    position:
+      dx: 4096
+      dy: 2752
+    size:
+      width: 192
+      height: 208
+    oldSize: null
+    parentId: null
+    isCollapsed: false
+    isContainer: false
+    icon:
+      codePoint: 59110
+      fontFamily: "MaterialIcons"
+      fontPackage: null
+    iconAssetPath: null
+    color: 4288585374
+    borderStyle: "solid"
+edges:
+  - id: "arr_HFjVtDFfzAwhmZZEWhmBp"
+    sourceId: "ctr_JnoSAFFAEgiXrWbW9AKn6"
+    targetId: "icn_qA1v1bx1Sh3c5ao3dlMv0"
+    label: null
+    color: 4284513675
+    borderStyle: "solid"
+    showSourceArrow: false
+    showTargetArrow: true
+  - id: "arr_1Na7j3Uxm1IYZDqi1nMFQ"
+    sourceId: "ctr_UdyBt79mAA4ea12rKuqdY"
+    targetId: "icn_hS5nmNUHqY6Rhmi47m3GM"
+    label: null
+    color: 4284513675
+    borderStyle: "solid"
+    showSourceArrow: false
+    showTargetArrow: true
+  - id: "arr_iGpm7GKRavW8vZbdJlnqA"
+    sourceId: "ctr_UdyBt79mAA4ea12rKuqdY"
+    targetId: "icn_VU0NAJnmECCDAEKj5Yyby"
+    label: null
+    color: 4284513675
+    borderStyle: "solid"
+    showSourceArrow: false
+    showTargetArrow: true
+  - id: "arr_DWAhDnA9LcNaaEdNRwk77"
+    sourceId: "icn_FnEcI50U8bDiCWLqxSOK7"
+    targetId: "ctr_dCVCogpgbDeiZXwn9OReg"
+    label: null
+    color: 4284513675
+    borderStyle: "solid"
+    showSourceArrow: true
+    showTargetArrow: false
+  - id: "arr_oX3FyoSCnWj6VeVULdJhq"
+    sourceId: "icn_rkyE0nfU3uly4x4ywCH8q"
+    targetId: "icn_03uGJzeVFbwXmcvc3o26G"
+    label: null
+    color: 4284513675
+    borderStyle: "solid"
+    showSourceArrow: false
+    showTargetArrow: true
+  - id: "arr_R6fL0dedDE2rfnj26aVzC"
+    sourceId: "icn_05ynVutNsKoCofZLButs9"
+    targetId: "icn_0jjEOknoJpsGxNOCgPthd"
+    label: "6"
+    color: 4284513675
+    borderStyle: "dashed"
+    showSourceArrow: false
+    showTargetArrow: true
+  - id: "arr_194S885zAOmBp0U8CAyZX"
+    sourceId: "icn_69yExkmVBehFynk9zFoDx"
+    targetId: "icn_0jjEOknoJpsGxNOCgPthd"
+    label: "1"
+    color: 4284513675
+    borderStyle: "dashed"
+    showSourceArrow: false
+    showTargetArrow: true
+  - id: "arr_JO4uCWHNBmf82xVKYfqrE"
+    sourceId: "icn_w6EgIMMxVrx0mz0GPSy1m"
+    targetId: "icn_0jjEOknoJpsGxNOCgPthd"
+    label: "5"
+    color: 4284513675
+    borderStyle: "dashed"
+    showSourceArrow: false
+    showTargetArrow: true
+  - id: "arr_ViqxgechaoOgiDmqzZdyv"
+    sourceId: "icn_Q315TacQGEc3lDcGM36uL"
+    targetId: "icn_0jjEOknoJpsGxNOCgPthd"
+    label: "trigger"
+    color: 4284513675
+    borderStyle: "dashed"
+    showSourceArrow: false
+    showTargetArrow: true
+  - id: "arr_zKddjmQUid70iMCa3a3Ch"
+    sourceId: "icn_0uNKDenu7eVUY6SCLRdDn"
+    targetId: "icn_mSa1evDCvFxIQyfXajA04"
+    label: null
+    color: 4284513675
+    borderStyle: "dashed"
+    showSourceArrow: false
+    showTargetArrow: true
+  - id: "arr_H72uXkh3WOila9rqEXDVT"
+    sourceId: "icn_11n7eWD6H5OyYTwtaSdg3"
+    targetId: "icn_Vb0Xax4EwAH4ZotVerS1P"
+    label: null
+    color: 4284513675
+    borderStyle: "dashed"
+    showSourceArrow: false
+    showTargetArrow: true
+  - id: "arr_HRWErwGvdGEw9iLbQL10F"
+    sourceId: "icn_11n7eWD6H5OyYTwtaSdg3"
+    targetId: "icn_j3o4Dd0UKeZjcV3QNk4T9"
+    label: null
+    color: 4284513675
+    borderStyle: "dashed"
+    showSourceArrow: false
+    showTargetArrow: true
+  - id: "arr_UF33o6m4LpDvhbFTZ4OTk"
+    sourceId: "icn_11n7eWD6H5OyYTwtaSdg3"
+    targetId: "icn_7Y6DgaMtkXUizpuWLJGA4"
+    label: null
+    color: 4284513675
+    borderStyle: "dashed"
+    showSourceArrow: false
+    showTargetArrow: true
+  - id: "arr_UNddiBZtndv9WkoHVIfu7"
+    sourceId: "icn_kinixbcsziEQMQDLhF8hJ"
+    targetId: "icn_11n7eWD6H5OyYTwtaSdg3"
+    label: null
+    color: 4284513675
+    borderStyle: "dashed"
+    showSourceArrow: false
+    showTargetArrow: true
+  - id: "arr_Rz3BJG9SLdSqiS74RaZi4"
+    sourceId: "icn_2gaOnMsbHs4vK2vbnUDWf"
+    targetId: "icn_kIPh49D5ETdJEhuRjXlJx"
+    label: null
+    color: 4284513675
+    borderStyle: "dashed"
+    showSourceArrow: false
+    showTargetArrow: true
