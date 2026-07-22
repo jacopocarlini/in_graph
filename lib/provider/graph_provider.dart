@@ -384,6 +384,7 @@ class GraphProvider extends ChangeNotifier {
         }
       }
     }
+    _invalidateCache();
     notifyListeners();
   }
 
@@ -401,6 +402,7 @@ class GraphProvider extends ChangeNotifier {
         }
       }
     }
+    _invalidateCache();
     notifyListeners();
   }
 
@@ -418,6 +420,7 @@ class GraphProvider extends ChangeNotifier {
         }
       }
     }
+    _invalidateCache();
     notifyListeners();
   }
 
@@ -441,6 +444,7 @@ class GraphProvider extends ChangeNotifier {
         }
       }
     }
+    _invalidateCache();
     notifyListeners();
   }
 
@@ -878,6 +882,26 @@ class GraphProvider extends ChangeNotifier {
     return null;
   }
 
+  /// Ritorna solo il nodo non-container più in alto colpito dalla posizione.
+  GraphNode? _hitTestNonContainerNodes(Offset position) {
+    for (var node in visibleNodes.reversed) {
+      if (!node.isContainer && _getEffectiveRect(node).contains(position)) {
+        return node;
+      }
+    }
+    return null;
+  }
+
+  /// Ritorna solo il container più in alto colpito dalla posizione.
+  GraphNode? _hitTestContainerNodes(Offset position) {
+    for (var node in visibleNodes.reversed) {
+      if (node.isContainer && _getEffectiveRect(node).contains(position)) {
+        return node;
+      }
+    }
+    return null;
+  }
+
   Alignment? _hitTestResizeHandles(Offset position) {
     if (_selectionNodes.isEmpty) return null;
     final node = _nodes.cast<GraphNode?>().firstWhere((n) => n?.id == _selectionNodes.first, orElse: () => null);
@@ -960,21 +984,33 @@ class GraphProvider extends ChangeNotifier {
         return;
       }
 
-      // PRIORITÀ AI NODI: Cerchiamo prima se il click ha colpito un nodo
-      final node = _hitTestNodes(position);
-      if (node != null) {
+      // PRIORITÀ 1: nodi non-container (icone/nodi foglia)
+      final nonContainerNode = _hitTestNonContainerNodes(position);
+      if (nonContainerNode != null) {
         _interactionMode = InteractionMode.draggingNode;
-        _interactingNodeId = node.id;
-        if (!selection.contains(node.id)) {
-          setSelection(node.id);
+        _interactingNodeId = nonContainerNode.id;
+        if (!selection.contains(nonContainerNode.id)) {
+          setSelection(nonContainerNode.id);
           _isTextEdit = false;
         }
         return;
       }
 
-      // Se nessun nodo è stato colpito, cerchiamo un arco
+      // PRIORITÀ 2: frecce (anche quelle dentro container)
       if (trySelectEdgeAt(position)) {
         _isTextEdit = false;
+        return;
+      }
+
+      // PRIORITÀ 3: container
+      final containerNode = _hitTestContainerNodes(position);
+      if (containerNode != null) {
+        _interactionMode = InteractionMode.draggingNode;
+        _interactingNodeId = containerNode.id;
+        if (!selection.contains(containerNode.id)) {
+          setSelection(containerNode.id);
+          _isTextEdit = false;
+        }
         return;
       }
 
