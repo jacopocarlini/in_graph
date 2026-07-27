@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:provider/provider.dart';
 import '../model/graph_models.dart';
 import '../provider/graph_provider.dart';
+import '../service/supabase_service.dart';
 
 import '../util/file_export_service.dart';
 import '../util/yaml_service.dart';
@@ -19,8 +21,13 @@ class EditorToolbar extends StatelessWidget {
 
     return Container(
       color: Colors.white,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Stack(
         children: [
+          Align(
+            alignment: Alignment.centerLeft,
+            child: _CollaboratorsList(provider: provider),
+          ),
           Align(
             alignment: Alignment.center,
             child: Row(
@@ -75,14 +82,122 @@ class EditorToolbar extends StatelessWidget {
           ),
           Align(
             alignment: Alignment.centerRight,
-            child: Padding(
-              padding: const EdgeInsets.only(right: 16.0),
-              child: _ExportImportMenu(provider: provider),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _ShareButton(provider: provider),
+                const SizedBox(width: 8),
+                _ExportImportMenu(provider: provider),
+              ],
             ),
           ),
         ],
       ),
     );
+  }
+}
+
+class _CollaboratorsList extends StatelessWidget {
+  final GraphProvider provider;
+  const _CollaboratorsList({required this.provider});
+
+  @override
+  Widget build(BuildContext context) {
+    final users = provider.remoteUsers.values.toList();
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _UserAvatar(
+          name: CollaborationManager.myName,
+          color: CollaborationManager.myColor,
+          isMe: true,
+        ),
+        ...users.map((u) => Padding(
+              padding: const EdgeInsets.only(left: 4.0),
+              child: _UserAvatar(name: u.name, color: u.color),
+            )),
+      ],
+    );
+  }
+}
+
+class _UserAvatar extends StatelessWidget {
+  final String name;
+  final Color color;
+  final bool isMe;
+
+  const _UserAvatar({
+    required this.name,
+    required this.color,
+    this.isMe = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: isMe ? "$name (Tu)" : name,
+      child: Container(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(color: color, width: 2),
+        ),
+        child: CircleAvatar(
+          radius: 16,
+          backgroundColor: color.withOpacity(0.2),
+          child: Text(
+            name.substring(0, 1).toUpperCase(),
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ShareButton extends StatefulWidget {
+  final GraphProvider provider;
+  const _ShareButton({required this.provider});
+
+  @override
+  State<_ShareButton> createState() => _ShareButtonState();
+}
+
+class _ShareButtonState extends State<_ShareButton> {
+  bool _isLoading = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return _isLoading
+        ? const SizedBox(
+            width: 24,
+            height: 24,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          )
+        : FilledButton.icon(
+            onPressed: () async {
+              setState(() => _isLoading = true);
+              final id = await widget.provider.createShareLink();
+              setState(() => _isLoading = false);
+
+              if (id != null && mounted) {
+                final link = "${Uri.base.origin}${Uri.base.path}?v=$id";
+                await Clipboard.setData(ClipboardData(text: link));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Link di condivisione copiato!')),
+                );
+              }
+            },
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.blue,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            ),
+            icon: const Icon(Icons.share, size: 18),
+            label: const Text('Condividi'),
+          );
   }
 }
 

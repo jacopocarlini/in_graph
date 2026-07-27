@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../model/graph_models.dart';
 import '../util/edge_routing_service.dart';
+import '../service/supabase_service.dart';
 
 enum InteractionMode {
   idle,
@@ -37,6 +39,154 @@ class GraphProvider extends ChangeNotifier {
   Alignment? _activeResizeHandle;
   String? _interactingNodeId;
   String? _hoveredNodeId;
+
+  // ==========================================
+  // COLLABORAZIONE
+  // ==========================================
+  String? _currentGraphId;
+  RealtimeChannel? _channel;
+  final Map<String, UserPresence> _remoteUsers = {};
+  bool _isIncomingUpdate = false;
+
+  Map<String, UserPresence> get remoteUsers => _remoteUsers;
+  String? get currentGraphId => _currentGraphId;
+
+  void _setupRealtime(String graphId) {
+    _channel?.unsubscribe();
+    _channel = SupabaseService.client.channel('graph_$graphId');
+
+    _channel!
+        .onBroadcast(
+            event: 'cursor',
+            callback: (payload) {
+              final presence = UserPresence.fromJson(payload);
+              if (presence.id != CollaborationManager.myId) {
+                _remoteUsers[presence.id] = presence;
+                notifyListeners();
+              }
+            })
+        .onBroadcast(
+            event: 'graph_update',
+            callback: (payload) {
+              _isIncomingUpdate = true;
+              _loadFromMap(payload);
+              _isIncomingUpdate = false;
+            })
+        .onPresenceSync((payload) {
+          // Gestione utenti online
+          final presenceStates = _channel!.presenceState();
+          // Pulisci utenti non più presenti
+          final activeIds = presenceStates
+              .expand((e) => e.presences)
+              .map((e) => e.payload['id'] as String)
+              .toSet();
+          _remoteUsers.removeWhere((key, value) => !activeIds.contains(key));
+          notifyListeners();
+        })
+        .subscribe((status, [error]) async {
+      if (status == RealtimeSubscribeStatus.subscribed) {
+        await _channel!.track({
+          'id': CollaborationManager.myId,
+          'name': CollaborationManager.myName,
+          'color': CollaborationManager.myColor.toARGB32(),
+        });
+      }
+    });
+  }
+
+  void broadcastCursor(Offset position) {
+    if (_channel == null) return;
+    _channel!.sendBroadcastMessage(
+      event: 'cursor',
+      payload: UserPresence(
+        id: CollaborationManager.myId,
+        name: CollaborationManager.myName,
+        color: CollaborationManager.myColor,
+        position: position,
+      ).toJson(),
+    );
+  }
+
+  void _broadcastGraphUpdate() {
+    if (_channel == null || _isIncomingUpdate) return;
+    _channel!.sendBroadcastMessage(
+      event: 'graph_update',
+      payload: {
+        'nodes': _nodes.map((n) => n.toMap()).toList(),
+        'edges': _edges.map((e) => e.toMap()).toList(),
+      },
+    );
+    _saveToDatabase();
+  }
+
+  Future<void> _saveToDatabase() async {
+    if (_currentGraphId == null) return;
+    try {
+      await SupabaseService.client.from('shared_graphs').upsert({
+        'id': _currentGraphId,
+        'data': {
+          'nodes': _nodes.map((n) => n.toMap()).toList(),
+          'edges': _edges.map((e) => e.toMap()).toList(),
+        },
+        'updated_at': DateTime.now().toIso8601String(),
+      });
+    } catch (e) {
+      debugPrint('Error saving to DB: $e');
+    }
+  }
+
+  Future<String?> createShareLink() async {
+    try {
+      final id = _currentGraphId ??
+          DateTime.now().millisecondsSinceEpoch.toString();
+      _currentGraphId = id;
+
+      await _saveToDatabase();
+      _setupRealtime(id);
+
+      // In un'app reale, useresti l'URL del sito
+      return id;
+    } catch (e) {
+      debugPrint('Error creating share link: $e');
+      return null;
+    }
+  }
+
+  Future<void> loadGraph(String graphId) async {
+    try {
+      final response = await SupabaseService.client
+          .from('shared_graphs')
+          .select('data')
+          .eq('id', graphId)
+          .single();
+
+      _currentGraphId = graphId;
+      _loadFromMap(response['data']);
+      _setupRealtime(graphId);
+    } catch (e) {
+      debugPrint('Error loading graph: $e');
+    }
+  }
+
+  void _loadFromMap(Map<dynamic, dynamic> data) {
+    final List<dynamic> nodesData = data['nodes'] ?? [];
+    final List<dynamic> edgesData = data['edges'] ?? [];
+
+    _nodes.clear();
+    _edges.clear();
+
+    for (var n in nodesData) {
+      _nodes.add(GraphNode.fromMap(n));
+    }
+    _nodesMap = {for (var n in _nodes) n.id: n};
+
+    for (var e in edgesData) {
+      _edges.add(GraphEdge.fromMap(e));
+    }
+
+    _invalidateCache();
+    notifyListeners();
+  }
 
   // ==========================================
   // CACHE E OTTIMIZZAZIONI
@@ -106,6 +256,11 @@ class GraphProvider extends ChangeNotifier {
   String? get draftEdgeSourceId => _draftEdgeSourceId;
 
   Offset? get draftEdgeTarget => _draftEdgeTarget;
+
+  void _notifyAndBroadcast() {
+    notifyListeners();
+    _broadcastGraphUpdate();
+  }
 
   // ==========================================
   // GESTIONE CANVAS E STATO GLOBALE
@@ -268,7 +423,7 @@ class GraphProvider extends ChangeNotifier {
     _selectionNodes.clear();
     _selectedEdges.clear();
     _invalidateCache();
-    notifyListeners();
+    _notifyAndBroadcast();
   }
 
   // ==========================================
@@ -320,7 +475,7 @@ class GraphProvider extends ChangeNotifier {
     _nodes.add(node);
     _nodesMap[node.id] = node;
     _invalidateCache();
-    notifyListeners();
+    _notifyAndBroadcast();
   }
 
   void updateNameNode(String id, String name) {
@@ -328,7 +483,7 @@ class GraphProvider extends ChangeNotifier {
     if (index != -1) {
       _nodes[index] = _nodes[index].copyWith(name: name);
       _nodesMap[id] = _nodes[index];
-      notifyListeners();
+      _notifyAndBroadcast();
     }
   }
 
@@ -348,7 +503,7 @@ class GraphProvider extends ChangeNotifier {
         clearIconAsset: clearIconAsset,
       );
       _nodesMap[id] = _nodes[index];
-      notifyListeners();
+      _notifyAndBroadcast();
     }
   }
 
@@ -357,7 +512,7 @@ class GraphProvider extends ChangeNotifier {
     if (index != -1) {
       _nodes[index] = _nodes[index].copyWith(color: color);
       _nodesMap[id] = _nodes[index];
-      notifyListeners();
+      _notifyAndBroadcast();
     }
   }
 
@@ -366,7 +521,7 @@ class GraphProvider extends ChangeNotifier {
     if (index != -1) {
       _nodes[index] = _nodes[index].copyWith(borderStyle: borderStyle);
       _nodesMap[id] = _nodes[index];
-      notifyListeners();
+      _notifyAndBroadcast();
     }
   }
 
@@ -385,7 +540,7 @@ class GraphProvider extends ChangeNotifier {
       }
     }
     _invalidateCache();
-    notifyListeners();
+    _notifyAndBroadcast();
   }
 
   void updateEdgeBorderStyle(String id, BorderStyleType style) {
@@ -403,7 +558,7 @@ class GraphProvider extends ChangeNotifier {
       }
     }
     _invalidateCache();
-    notifyListeners();
+    _notifyAndBroadcast();
   }
 
   void updateEdgeLabel(String id, String label) {
@@ -421,7 +576,7 @@ class GraphProvider extends ChangeNotifier {
       }
     }
     _invalidateCache();
-    notifyListeners();
+    _notifyAndBroadcast();
   }
 
   void updateEdgeArrows(String id, {bool? showSource, bool? showTarget}) {
@@ -445,7 +600,7 @@ class GraphProvider extends ChangeNotifier {
       }
     }
     _invalidateCache();
-    notifyListeners();
+    _notifyAndBroadcast();
   }
 
   void resizeNode(String id, Size newSize) {
@@ -457,7 +612,7 @@ class GraphProvider extends ChangeNotifier {
       _nodes[index] = _nodes[index].copyWith(size: Size(width, height));
       _nodesMap[id] = _nodes[index];
       _invalidateCache(pathsOnly: true);
-      notifyListeners();
+      _notifyAndBroadcast();
     }
   }
 
@@ -497,7 +652,7 @@ class GraphProvider extends ChangeNotifier {
     }
 
     _invalidateCache(pathsOnly: true);
-    notifyListeners();
+    _notifyAndBroadcast();
   }
 
   Rect _getEffectiveRect(GraphNode node) {
@@ -538,12 +693,12 @@ class GraphProvider extends ChangeNotifier {
     }
 
     _recalculateHierarchyBasedOnGeometry();
-    notifyListeners();
+    _notifyAndBroadcast();
   }
 
   void autoAdoptNodes(GraphNode container) {
     _recalculateHierarchyBasedOnGeometry();
-    notifyListeners();
+    _notifyAndBroadcast();
   }
 
   void _enforceParentChildZOrder() {
@@ -567,7 +722,7 @@ class GraphProvider extends ChangeNotifier {
 
   void updateContainerChildren(String containerId) {
     _recalculateHierarchyBasedOnGeometry();
-    notifyListeners();
+    _notifyAndBroadcast();
   }
 
   void _bringOverlappingNodesToFront(String containerId) {
@@ -632,7 +787,7 @@ class GraphProvider extends ChangeNotifier {
       );
       _nodesMap[nodeId] = _nodes[index];
       _invalidateCache();
-      notifyListeners();
+      _notifyAndBroadcast();
     }
   }
 
@@ -845,6 +1000,7 @@ class GraphProvider extends ChangeNotifier {
         _invalidateCache();
         _selectedEdges.clear();
         _selectedEdges.add(newEdge.id);
+        _broadcastGraphUpdate();
       } else {
         message = true;
       }

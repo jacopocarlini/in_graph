@@ -9,6 +9,43 @@ import '../provider/graph_provider.dart';
 import 'NodeWidget.dart';
 import '../util/edge_painter.dart';
 import 'PropertySidebar.dart';
+import '../service/supabase_service.dart';
+
+class RemoteCursorWidget extends StatelessWidget {
+  final UserPresence presence;
+  const RemoteCursorWidget({Key? key, required this.presence}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      left: presence.position.dx,
+      top: presence.position.dy,
+      child: IgnorePointer(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.navigation, color: presence.color, size: 24),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+              decoration: BoxDecoration(
+                color: presence.color,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                presence.name,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 class NodeWidgetById extends StatelessWidget {
   final String id;
@@ -171,10 +208,13 @@ class _GraphCanvasState extends State<GraphCanvas>
                             }
                             provider.handlePointerDown(event.localPosition);
                           },
-                          onPointerMove: (event) => provider.handlePointerMove(
-                            event.localPosition,
-                            event.localDelta,
-                          ),
+                          onPointerMove: (event) {
+                            provider.handlePointerMove(
+                              event.localPosition,
+                              event.localDelta,
+                            );
+                            provider.broadcastCursor(event.localPosition);
+                          },
                           onPointerUp: (event) {
                             var message = provider.handlePointerUp(event.localPosition);
                             if (message){
@@ -185,9 +225,12 @@ class _GraphCanvasState extends State<GraphCanvas>
                                 ),
                               );
                             }
+                            provider.broadcastCursor(event.localPosition);
                           },
-                          onPointerHover: (event) =>
-                              provider.updateCurrentPosition(event.localPosition),
+                          onPointerHover: (event) {
+                            provider.updateCurrentPosition(event.localPosition);
+                            provider.broadcastCursor(event.localPosition);
+                          },
                           child: Selector<GraphProvider, SystemMouseCursor>(
                             selector: (_, p) => buildCursor(p),
                             builder: (context, cursor, child) {
@@ -267,6 +310,19 @@ class _GraphCanvasState extends State<GraphCanvas>
                                           );
                                         }
                                         return const SizedBox.shrink();
+                                      },
+                                    ),
+                                    Selector<GraphProvider, List<UserPresence>>(
+                                      selector: (_, p) =>
+                                          p.remoteUsers.values.toList(),
+                                      builder: (context, users, _) {
+                                        return Stack(
+                                          children: users
+                                              .map((u) => RemoteCursorWidget(
+                                                  key: ValueKey(u.id),
+                                                  presence: u))
+                                              .toList(),
+                                        );
                                       },
                                     ),
                                   ],
