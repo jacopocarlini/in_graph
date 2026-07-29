@@ -41,6 +41,12 @@ class GraphProvider extends ChangeNotifier {
   String? _hoveredNodeId;
 
   // ==========================================
+  // APPUNTI (CLIPBOARD)
+  // ==========================================
+  List<GraphNode> _clipboardNodes = [];
+  List<GraphEdge> _clipboardEdges = [];
+
+  // ==========================================
   // COLLABORAZIONE
   // ==========================================
   String? _currentGraphId;
@@ -422,6 +428,91 @@ class GraphProvider extends ChangeNotifier {
 
     _selectionNodes.clear();
     _selectedEdges.clear();
+    _invalidateCache();
+    _notifyAndBroadcast();
+  }
+
+  // ==========================================
+  // GESTIONE COPIA E INCOLLA
+  // ==========================================
+  void copySelected() {
+    if (_selectionNodes.isEmpty && _selectedEdges.isEmpty) return;
+
+    _clipboardNodes = _nodes
+        .where((n) => _selectionNodes.contains(n.id))
+        .map((n) => GraphNode.fromMap(n.toMap())) // Deep copy
+        .toList();
+
+    // Copia gli archi che sono esplicitamente selezionati O che collegano due nodi selezionati
+    _clipboardEdges = _edges.where((e) {
+      bool isSelected = _selectedEdges.contains(e.id);
+      bool isConnected = _selectionNodes.contains(e.sourceId) &&
+          _selectionNodes.contains(e.targetId);
+      return isSelected || isConnected;
+    }).map((e) => GraphEdge.fromMap(e.toMap())) // Deep copy
+    .toList();
+  }
+
+  void paste() {
+    if (_clipboardNodes.isEmpty && _clipboardEdges.isEmpty) return;
+
+    final String timestamp = DateTime.now().millisecondsSinceEpoch.toString();
+    final Map<String, String> idMapping = {};
+    
+    // Offset per gli elementi incollati (per non sovrapporli perfettamente)
+    const Offset pasteOffset = Offset(40, 40);
+
+    // 1. Crea nuovi nodi e mappa gli ID
+    for (var node in _clipboardNodes) {
+      final newId = 'node_${timestamp}_${node.id}';
+      idMapping[node.id] = newId;
+    }
+
+    final List<GraphNode> pastedNodes = _clipboardNodes.map((node) {
+      return GraphNode(
+        id: idMapping[node.id]!,
+        name: '${node.name}',
+        position: node.position + pasteOffset,
+        size: node.size,
+        oldSize: node.oldSize,
+        // Se il parent è stato copiato, usa il nuovo ID del parent, altrimenti mantieni l'originale (se esiste ancora)
+        parentId: idMapping[node.parentId] ?? node.parentId, 
+        isCollapsed: node.isCollapsed,
+        isContainer: node.isContainer,
+        icon: node.icon,
+        iconAssetPath: node.iconAssetPath,
+        color: node.color,
+        borderStyle: node.borderStyle,
+      );
+    }).toList();
+
+    // 2. Crea nuovi archi
+    final List<GraphEdge> pastedEdges = _clipboardEdges.map((edge) {
+      // Se entrambi i capi dell'arco sono stati copiati, usa i nuovi ID
+      // Altrimenti usa gli ID originali (collegamento tra nuovo e vecchio)
+      return GraphEdge(
+        id: 'edge_${timestamp}_${edge.id}',
+        sourceId: idMapping[edge.sourceId] ?? edge.sourceId,
+        targetId: idMapping[edge.targetId] ?? edge.targetId,
+        label: edge.label,
+        color: edge.color,
+        borderStyle: edge.borderStyle,
+        showSourceArrow: edge.showSourceArrow,
+        showTargetArrow: edge.showTargetArrow,
+      );
+    }).toList();
+
+    _nodes.addAll(pastedNodes);
+    for (var n in pastedNodes) {
+      _nodesMap[n.id] = n;
+    }
+    _edges.addAll(pastedEdges);
+
+    // 3. Aggiorna la selezione agli elementi appena incollati
+    _selectionNodes = pastedNodes.map((n) => n.id).toList();
+    _selectedEdges = pastedEdges.map((e) => e.id).toList();
+
+    _recalculateHierarchyBasedOnGeometry();
     _invalidateCache();
     _notifyAndBroadcast();
   }

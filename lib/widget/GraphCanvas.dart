@@ -369,6 +369,19 @@ class _GraphCanvasState extends State<GraphCanvas>
       }
     }
     if (event is KeyDownEvent) {
+      final isControlPressed = HardwareKeyboard.instance.isControlPressed ||
+          HardwareKeyboard.instance.isMetaPressed;
+
+      if (isControlPressed && event.logicalKey == LogicalKeyboardKey.keyC) {
+        provider.copySelected();
+        return KeyEventResult.handled;
+      }
+
+      if (isControlPressed && event.logicalKey == LogicalKeyboardKey.keyV) {
+        provider.paste();
+        return KeyEventResult.handled;
+      }
+
       if (event.logicalKey == LogicalKeyboardKey.space) {
         provider.setTool(ToolType.pan);
       }
